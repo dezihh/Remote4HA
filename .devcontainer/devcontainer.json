@@ -1,18 +1,33 @@
 {
-  "name": "Debian ESP32 Development",
-  "image": "debian:bullseye",
-  "extensions": [
-    "platformio.platformio-ide",  // PlatformIO Extension
-    "ms-vscode.cpptools",         // C/C++ Extension
-    "esbenp.prettier-vscode"      // Optional: Prettier für Code-Formatierung
-  ],
-  "settings": {
-    "terminal.integrated.shell.linux": "/bin/bash"
-  },
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y python3-pip && pip3 install platformio",
-  "remoteUser": "vscode",
-  "workspaceFolder": "/workspace",
-  "mounts": [
-    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
-  ]
+	"name": "PlatformIO (Community)",
+	"build": {
+		"dockerfile": "Containerfile",
+		"context": ".",
+		"args": {
+			"FEDORA_COMPAT" : "1", // enables fedora compatibility mode (extra dialout group with gid 18)
+			"VARIANT": "bookworm"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "zsh"
+			},
+			"extensions": [
+				"ms-vscode.cpptools",
+				"platformio.platformio-ide"
+			]
+		}
+	},
+	"forwardPorts": [
+		8008
+	],
+	"mounts": [
+		"source=/dev/,target=/dev/,type=bind,consistency=consistent"
+	],
+	"runArgs": [
+		"--privileged"
+	],
+	"features": {},
+	"postAttachCommand": "sudo service udev restart"
 }
