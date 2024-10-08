@@ -1,0 +1,13 @@
+{
+  "name": "ESP32 Development",
+  "image": "platformio/platformio-core",
+  "extensions": [
+    "platformio.platformio-ide"
+  ],
+  "settings": {
+    "terminal.integrated.shell.linux": "/bin/bash"
+  },
+  "postCreateCommand": "platformio update",
+  "remoteUser": "vscode",
+  "workspaceFolder": "/workspace"
+}
