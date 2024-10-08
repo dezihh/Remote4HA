@@ -1,8 +1,6 @@
 {
   "name": "Debian ESP32 Development",
-  "build": {
-    "dockerfile": "Dockerfile"
-  },
+  "image": "debian:bullseye",
   "extensions": [
     "platformio.platformio-ide",  // PlatformIO Extension
     "ms-vscode.cpptools",         // C/C++ Extension
