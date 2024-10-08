@@ -1,13 +1,20 @@
 {
-  "name": "ESP32 Development",
-  "image": "platformio/platformio-core",
+  "name": "Debian ESP32 Development",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   "extensions": [
-    "platformio.platformio-ide"
+    "platformio.platformio-ide",  // PlatformIO Extension
+    "ms-vscode.cpptools",         // C/C++ Extension
+    "esbenp.prettier-vscode"      // Optional: Prettier für Code-Formatierung
   ],
   "settings": {
     "terminal.integrated.shell.linux": "/bin/bash"
   },
-  "postCreateCommand": "platformio update",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y python3-pip && pip3 install platformio",
   "remoteUser": "vscode",
-  "workspaceFolder": "/workspace"
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ]
 }
