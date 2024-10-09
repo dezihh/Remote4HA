@@ -26,7 +26,8 @@
 		"source=/dev/,target=/dev/,type=bind,consistency=consistent"
 	],
 	"runArgs": [
-		"--privileged"
+		"--privileged",
+		"--device=/dev/ttyUSB0" 
 	],
 	"features": {},
 	"postAttachCommand": "sudo service udev restart"
