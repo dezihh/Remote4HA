@@ -22,4 +22,6 @@ usbipd list
 usbipd.exe bind --busid 3-5
 usbipd attach --wsl --busid 3-5
 
+modprobe cp341
+
 
