@@ -17,11 +17,11 @@ lib_deps = <br>
     tanakamasayuki/EspUsbHost<br>
 
 <b>WSL4 COM:</b><br>
-winget install usbipd
-usbipd list
-usbipd.exe bind --busid 3-5
-usbipd attach --wsl --busid 3-5
+winget install usbipd<br>
+usbipd list<br>
+usbipd.exe bind --busid 3-5<br>
+usbipd attach --wsl --busid 3-5<br>
 
-modprobe cp341
+modprobe cp341<br>
 
 
