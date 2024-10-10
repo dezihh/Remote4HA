@@ -29,5 +29,6 @@ modprobe cp341<br>
 <br>OSC did not start" keeps showing up in the Serial Monitor: https://forum.arduino.cc/t/osc-did-not-start-keeps-showing-up-in-the-serial-monitor/516403
 <br>Arduino Shield – USB 2.0 Host shield Hw: http://domoticx.com/arduino-shield-usb-2-0-host-shield/
 <br>Big Foto of Shield: https://forum.pjrc.com/index.php?threads/teensy-with-mini-usb-host-shield-chineese.43357/
+<br>SoftUSB: https://github.com/tobozo/ESP32-USB-Soft-Host/tree/main
 
 
