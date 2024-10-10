@@ -24,4 +24,10 @@ usbipd attach --wsl --busid 3-5<br>
 
 modprobe cp341<br>
 
+<br>Plug Any USB Device on an ESP8266: https://www.hackster.io/usini/plug-any-usb-device-on-an-esp8266-e0ca8a
+<br>USB to USB keyboard converter build log: https://geekhack.org/index.php?topic=80421.0
+<br>OSC did not start" keeps showing up in the Serial Monitor: https://forum.arduino.cc/t/osc-did-not-start-keeps-showing-up-in-the-serial-monitor/516403
+<br>Arduino Shield – USB 2.0 Host shield Hw: http://domoticx.com/arduino-shield-usb-2-0-host-shield/
+<br>Big Foto of Shield: https://forum.pjrc.com/index.php?threads/teensy-with-mini-usb-host-shield-chineese.43357/
+
 
