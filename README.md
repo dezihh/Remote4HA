@@ -31,4 +31,6 @@ modprobe cp341<br>
 <br>Big Foto of Shield: https://forum.pjrc.com/index.php?threads/teensy-with-mini-usb-host-shield-chineese.43357/
 <br>SoftUSB: https://github.com/tobozo/ESP32-USB-Soft-Host/tree/main
 
+<br> Use Webserial! https://github.com/ayushsharma82/WebSerial/tree/master
+
 
