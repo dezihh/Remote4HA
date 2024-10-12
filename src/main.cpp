@@ -1,4 +1,4 @@
-#include <Arduino.h>
+//#include <Arduino.h>
 #include <WiFiManager.h>    // WiFiManager Bibliothek
 #include <AsyncTCP.h>       // Für den Webserver auf ESP32
 #include <ESPAsyncWebServer.h>
@@ -6,11 +6,6 @@
 #include <usbhub.h>
 #include <SPI.h>
 
-// SPI Pin Definitionen für ESP32 (NodeMCU ESP32 Wroom 32)
-#define PIN_MISO 19
-#define PIN_MOSI 23
-#define PIN_SCK 18
-#define PIN_SS 5  // Chip Select Pin für das USB Host Shield
 
 String hidData = "";  // String, um empfangene HID-Daten zu speichern
 AsyncWebServer server(80); // Webserver auf Port 80
@@ -66,8 +61,11 @@ void setup() {
     Serial.println("Start");
 
     // SPI Pins definieren
-    SPI.begin(PIN_SCK, PIN_MISO, PIN_MOSI, PIN_SS);
-
+    //SPI.begin(PIN_SCK, PIN_MISO, PIN_MOSI, PIN_SS);
+ 
+  #ifdef ESP32
+  Serial.println("ESP32 basiertes Board erkannt!");
+  #endif
     // WiFiManager initialisieren
     WiFiManager wm;
 
@@ -93,6 +91,7 @@ void setup() {
     UsbDEBUGlvl = 0xff;
 
     delay(200);
+
 }
 
 void loop() {
