@@ -9,3 +9,4 @@
 ## Keep in mind:
 - Add nessecary drivers (cp341, cp210x) in ``/etc/modules-load.d/modules.conf``
     - Testable with modprobe
+- IF container rebuild a ``attach -a --wsl --busid 10-3`` for autmatic remapping
