@@ -33,4 +33,10 @@ modprobe cp341<br>
 
 <br> Use Webserial! https://github.com/ayushsharma82/WebSerial/tree/master
 
+<br>b>BLE</b>
+<br>https://github.com/blackketter/ESP32-BLE-Combo/tree/master
+<br<kleiner: https://github.com/T-vK/ESP32-BLE-Keyboard/blob/master/BleKeyboard.h
+<br>commands-table: https://github.com/asterics/esp32_mouse_keyboard
+
+
 
