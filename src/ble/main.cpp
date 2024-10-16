@@ -2,8 +2,7 @@
 Platformio.ini Einträge:
 Framewort: arduino
 Libs:    
-  espressif/arduino-esp32@^2.0.0  ; ESP32 Arduino Core (wird automatisch eingebunden)
-  T-vK/HID-Project@^2.5.0         ; Für HID-Tastatur-Funktionalität (BLE HID)
+  BLE
 ***********************************/
 
 #define US_KEYBOARD 1  // Definiert, dass eine US-amerikanische Tastatur verwendet wird
