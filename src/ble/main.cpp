@@ -14,6 +14,12 @@ Libs:
 #include "HIDTypes.h"         // Bibliothek für HID-Typen (z.B. Tastatur)
 #include "HIDKeyboardTypes.h" // Bibliothek für spezielle HID-Tastaturtypen
 
+#define HID_HOME 0x4A
+#define HID_LEFT_ARROW 0x50
+#define HID_RIGHT_ARROW 0x4F
+#define HID_UP_ARROW 0x52
+#define HID_DOWN_ARROW 0x51
+
 // Werte, die bei Bedarf angepasst werden können
 #define DEVICE_NAME "ESP32 Keyboard"  // Der Name, unter dem das BLE-Gerät erscheint
 
@@ -31,16 +37,18 @@ void setup() {
     xTaskCreate(bluetoothTask, "bluetooth", 20000, NULL, 5, NULL);
 }
 
-void loop() {  
-    // Prüfe, ob eine BLE-Verbindung besteht und etwas auf der seriellen Schnittstelle empfangen wurde
+void loop() {
     if (isBleConnected && Serial.available() > 0) {
-        String message = Serial.readStringUntil('\n');  // Lese die Nachricht bis zum Zeilenumbruch
-        Serial.print("Sending: ");  // Ausgabe auf der seriellen Schnittstelle
-        Serial.println(message);    // Ausgabe der Nachricht
-        typeText(message.c_str());  // Nachricht über die BLE-Tastaturfunktion senden
+        String inputText = Serial.readStringUntil('\n');  // Eingabe bis Zeilenende lesen
+        inputText.trim();  // Entferne unnötige Leerzeichen
+
+        if (inputText.length() > 0) {
+            Serial.println("Processing input: " + inputText);
+            processInput(inputText);  // Übergib den eingegebenen Text zur Verarbeitung
+        }
     }
 
-    delay(100);  // Kurze Verzögerung, um die Abtastrate zu verringern
+    delay(100);
 }
 
 // Struktur für ein Eingangsreport, das gesendet wird, wenn eine Taste gedrückt oder losgelassen wird
@@ -187,3 +195,50 @@ void typeText(const char* text) {
         delay(5);  // Kurze Verzögerung
     }
 }
+void processInput(const String& inputText) {
+    InputReport report = NO_KEY_PRESSED;  // Start mit keinem Key gedrückt
+
+    // Prüfe, ob es sich um eine Spezialtaste handelt
+    if (inputText.equalsIgnoreCase("HOME")) {
+        report.pressedKeys[0] = HID_HOME;
+    } else if (inputText.equalsIgnoreCase("LEFT")) {
+        report.pressedKeys[0] = HID_LEFT_ARROW;
+    } else if (inputText.equalsIgnoreCase("RIGHT")) {
+        report.pressedKeys[0] = HID_RIGHT_ARROW;
+    } else if (inputText.equalsIgnoreCase("UP")) {
+        report.pressedKeys[0] = HID_UP_ARROW;
+    } else if (inputText.equalsIgnoreCase("DOWN")) {
+        report.pressedKeys[0] = HID_DOWN_ARROW;
+    } else if (isAlphanumeric(inputText)) {
+        // Wenn der eingegebene Text alphanumerisch ist, sende ihn als normalen Text
+        typeText(inputText.c_str());
+        return;  // Nach dem Senden von alphanumerischem Text keine weitere Verarbeitung
+    } else {
+        Serial.println("Unrecognized input: " + inputText);
+        return;  // Ungültige Eingabe, keine Aktion erforderlich
+    }
+
+    // Wenn eine Sondertaste erkannt wurde, sende den Report
+    input->setValue((uint8_t*)&report, sizeof(report));
+    input->notify();
+    delay(5);
+
+    // Taste loslassen
+    input->setValue((uint8_t*)&NO_KEY_PRESSED, sizeof(NO_KEY_PRESSED));
+    input->notify();
+    delay(5);
+}
+// Prüfen, ob der eingegebene Text ein alphanumerisches Zeichen ist
+bool isAlphanumeric(const String& inputText) {
+    // Prüft, ob alle Zeichen im String alphanumerisch sind (Buchstaben oder Ziffern)
+    for (size_t i = 0; i < inputText.length(); i++) {
+        if (!isalnum(inputText[i])) {
+            return false;  // Nicht alphanumerisch
+        }
+    }
+    return true;  // Nur alphanumerische Zeichen
+}
+
+
+
+
