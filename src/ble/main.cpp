@@ -3,6 +3,8 @@ Platformio.ini Einträge:
 Framewort: arduino
 Libs:    
   BLE
+
+Abgeleitet von: https://gist.github.com/manuelbl/66f059effc8a7be148adb1f104666467
 ***********************************/
 
 #define US_KEYBOARD 1  // Definiert, dass eine US-amerikanische Tastatur verwendet wird
