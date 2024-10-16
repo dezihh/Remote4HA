@@ -32,6 +32,7 @@ bool isBleConnected = false;
 
 void setup() {
     Serial.begin(115200);  // Serielle Kommunikation mit 115200 Baudrate beginnen
+    Serial.print("Starting up... ");
 
     // Starte die Bluetooth-Task (multithreaded)
     xTaskCreate(bluetoothTask, "bluetooth", 20000, NULL, 5, NULL);
