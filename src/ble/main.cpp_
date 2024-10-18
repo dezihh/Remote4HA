@@ -15,7 +15,7 @@ Abgeleitet von: https://gist.github.com/manuelbl/66f059effc8a7be148adb1f10466646
 #include "HIDTypes.h"         // Bibliothek für HID-Typen (z.B. Tastatur)
 #include "HIDKeyboardTypes.h" // Bibliothek für spezielle HID-Tastaturtypen
 
-#define HID_HOME 0x4A
+#define HID_HOME 0x48
 #define HID_LEFT_ARROW 0x50
 #define HID_RIGHT_ARROW 0x4F
 #define HID_UP_ARROW 0x52
@@ -23,6 +23,9 @@ Abgeleitet von: https://gist.github.com/manuelbl/66f059effc8a7be148adb1f10466646
 
 // Werte, die bei Bedarf angepasst werden können
 #define DEVICE_NAME "ESP32 Keyboard"  // Der Name, unter dem das BLE-Gerät erscheint
+
+void processInput(const String& inputText); 
+bool isAlphanumeric(const String& inputText);
 
 // Vorwärtsdeklaration von Funktionen
 void bluetoothTask(void*);
@@ -198,38 +201,50 @@ void typeText(const char* text) {
     }
 }
 void processInput(const String& inputText) {
-    InputReport report = NO_KEY_PRESSED;  // Start mit keinem Key gedrückt
+    const char* cstrInputText = inputText.c_str(); // Konvertiere String zu const char*
+    
+    for (size_t i = 0; i < strlen(cstrInputText); i++) {
+        uint8_t val = (uint8_t)cstrInputText[i];
+        
+        // Überprüfen auf spezielle Tasten
+        if (val == 'H') { // Home-Taste
+            uint8_t homeSequence[] = {0x1B, 0x5B, 0x48}; // ESC [ H
+            input->setValue(homeSequence, sizeof(homeSequence));
+            input->notify();
+            continue; // Weiter zur nächsten Eingabe
+        } else if (val == 'E') { // End-Taste
+            uint8_t endSequence[] = {0x1B, 0x5B, 0x46}; // ESC [ F
+            input->setValue(endSequence, sizeof(endSequence));
+            input->notify();
+            continue; // Weiter zur nächsten Eingabe
+        } else if (val == 0x1B) { // ESC-Zeichen
+            // Falls ESC selbst verarbeitet werden soll
+            uint8_t escSequence[] = {0x1B}; // ESC
+            input->setValue(escSequence, sizeof(escSequence));
+            input->notify();
+            continue; // Weiter zur nächsten Eingabe
+        }
+        
+        // Für alphanumerische Zeichen oder andere normale Tasten
+        if (val >= 32 && val <= 126) { // Alphanumerische Zeichen
+            KEYMAP map = keymap[val]; // Annahme, dass keymap eine definierte Zuordnung hat
 
-    // Prüfe, ob es sich um eine Spezialtaste handelt
-    if (inputText.equalsIgnoreCase("HOME")) {
-        report.pressedKeys[0] = HID_HOME;
-    } else if (inputText.equalsIgnoreCase("LEFT")) {
-        report.pressedKeys[0] = HID_LEFT_ARROW;
-    } else if (inputText.equalsIgnoreCase("RIGHT")) {
-        report.pressedKeys[0] = HID_RIGHT_ARROW;
-    } else if (inputText.equalsIgnoreCase("UP")) {
-        report.pressedKeys[0] = HID_UP_ARROW;
-    } else if (inputText.equalsIgnoreCase("DOWN")) {
-        report.pressedKeys[0] = HID_DOWN_ARROW;
-    } else if (isAlphanumeric(inputText)) {
-        // Wenn der eingegebene Text alphanumerisch ist, sende ihn als normalen Text
-        typeText(inputText.c_str());
-        return;  // Nach dem Senden von alphanumerischem Text keine weitere Verarbeitung
-    } else {
-        Serial.println("Unrecognized input: " + inputText);
-        return;  // Ungültige Eingabe, keine Aktion erforderlich
+            InputReport report = {
+                .modifiers = map.modifier,
+                .reserved = 0,
+                .pressedKeys = { map.usage, 0, 0, 0, 0, 0 }
+            };
+
+            input->setValue((uint8_t*)&report, sizeof(report));
+            input->notify();
+
+            // Release all keys
+            input->setValue((uint8_t*)&NO_KEY_PRESSED, sizeof(NO_KEY_PRESSED));
+            input->notify();
+        }
     }
-
-    // Wenn eine Sondertaste erkannt wurde, sende den Report
-    input->setValue((uint8_t*)&report, sizeof(report));
-    input->notify();
-    delay(5);
-
-    // Taste loslassen
-    input->setValue((uint8_t*)&NO_KEY_PRESSED, sizeof(NO_KEY_PRESSED));
-    input->notify();
-    delay(5);
 }
+
 // Prüfen, ob der eingegebene Text ein alphanumerisches Zeichen ist
 bool isAlphanumeric(const String& inputText) {
     // Prüft, ob alle Zeichen im String alphanumerisch sind (Buchstaben oder Ziffern)
