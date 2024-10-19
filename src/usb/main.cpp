@@ -5,6 +5,7 @@
 #include <HIDKeyboardTypes.h>
 #include "EspUsbHost.h"
 #include "reportMap.h"
+#include "esp_log.h" 
 
 // BLE HID service variables
 BLEHIDDevice* hid;
@@ -16,25 +17,36 @@ bool is_ble_connected = false;
 // USB Host
 class MyEspUsbHost : public EspUsbHost {
 public:
-void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
-    Serial.printf("Key: %02x(%c) Modifier: %02x\n", keycode, ascii, modifier);
+    bool usb_connected = false;  // Flag zum Verfolgen des USB-Geräte-Status
 
-    // Erstellen der HID-Report-Daten: 8-Byte-Report (Modifier, Reserved, Keycode[6])
-    uint8_t report[8] = {0};  // Initialisiert alle auf 0
-    report[0] = modifier;     // Modifier Byte (z.B. Shift, Control, Alt)
-    report[2] = keycode;      // Keycode an der dritten Position (erste Taste)
+    void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
+        usb_connected = true;  // USB-Gerät ist verbunden
+        if (is_ble_connected) {  // Nur Datenübergabe, wenn BLE verbunden ist
+            Serial.printf("Key: %02x(%c) Modifier: %02x\n", keycode, ascii, modifier);
 
-    // Senden des Tastendrucks (Keydown)
-    input->setValue(report, sizeof(report));  // Setzt den Wert des HID-Reports
-    input->notify();                          // Benachrichtigt den Host über die Tasteneingabe
+            // HID-Report erstellen und senden
+            uint8_t report[8] = {0};
+            report[0] = modifier;
+            report[2] = keycode;
 
-    delay(100);  // Kurze Verzögerung, um den Tastendruck zu simulieren
+            input->setValue(report, sizeof(report));
+            input->notify();
 
-    // Taste loslassen (alle Werte auf 0 setzen)
-    memset(report, 0, sizeof(report));        // Setzt den gesamten Report auf 0 (Taste loslassen)
-    input->setValue(report, sizeof(report));  // Leerer Report
-    input->notify();                          // Benachrichtigt den Host, dass keine Taste mehr gedrückt ist
-}
+            delay(100);
+            memset(report, 0, sizeof(report));
+            input->setValue(report, sizeof(report));
+            input->notify();
+        } else {
+            Serial.println("BLE not connected, discarding key input.");
+        }
+    }
+
+    // Diese Methode wird aufgerufen, wenn ein USB-Gerät entfernt wurde
+    void onUsbDisconnect() {
+        usb_connected = false;  // USB-Gerät wurde entfernt
+        Serial.println("\nUSB device disconnected. Restarting USB host...");
+        begin();  // Startet den USB-Host erneut, um nach neuen Geräten zu suchen
+    }
 };
 
 MyEspUsbHost usbHost;
@@ -42,20 +54,32 @@ MyEspUsbHost usbHost;
 class MyCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
         is_ble_connected = true;
-        Serial.println("BLE connected");
+        Serial.println("\nBLE connected");
     }
 
     void onDisconnect(BLEServer* pServer) {
         is_ble_connected = false;
-        Serial.println("BLE disconnected");
+        Serial.println("\nBLE disconnected");
     }
 };
 
-void setup() {
-   Serial.begin(115200);
-    Serial.println("Starting setup...");
+// Status für das drehende Kreuz
+char spin_chars[] = {'|', '/', '-', '\\'};
+int spin_index = 0;
 
-     // Initialisiere USB-Keyboard
+void printStatus(const char* message) {
+    // Lösche die letzte Zeile, indem du einen Wagenrücklauf sendest
+    Serial.printf("\r%s %c", message, spin_chars[spin_index]);
+    spin_index = (spin_index + 1) % 4;  // Zyklisch durch das Kreuz drehen
+}
+
+void setup() {
+    Serial.begin(115200);
+    Serial.println("Starting setup...");
+  // USB-Logging auf Error setzen, um Debug-Ausgaben zu unterdrücken
+    esp_log_level_set("*", ESP_LOG_NONE); // Ändere "USBH" auf den Tag der USB-Bibliothek
+
+    // Initialisiere USB-Keyboard
     usbHost.begin();
     Serial.println("USB Keyboard initialized");
 
@@ -84,18 +108,23 @@ void setup() {
     pAdvertising->addServiceUUID(hid->hidService()->getUUID());
     pAdvertising->start();
     Serial.println("Waiting for a client connection to notify...");
-
 }
 
 void loop() {
-    // USB Tastatureingaben verarbeiten
+    // USB-Tastatureingaben verarbeiten und Verbindungsstatus überwachen
     usbHost.task();
-        // BLE-Tasks verarbeiten, um BLE-Events wie Advertising und Verbindungen zu überwachen
-    if (is_ble_connected) {
-        // Verbindung besteht, möglicherweise Datenübertragung hier verarbeiten
-    } else {
-        // Keine BLE-Verbindung, möglicherweise neu werben
-        BLEDevice::startAdvertising();  // Stellt sicher, dass das Advertising läuft
+
+    // Wenn das USB-Gerät getrennt wurde, überprüfe den Verbindungsstatus erneut
+    if (!usbHost.usb_connected) {
+        printStatus("No USB device connected, waiting...");
+        delay(500);  // Kurze Verzögerung, bevor erneut nach dem USB-Gerät gesucht wird
+    }
+
+    // BLE-Tasks verarbeiten, um BLE-Events wie Advertising und Verbindungen zu überwachen
+    if (!is_ble_connected) {
+        BLEDevice::startAdvertising();  // Wenn BLE getrennt wurde, Advertising erneut starten
+        printStatus("Re-starting BLE advertising...");
+        delay(500);
     }
 
     delay(10);  // Kurze Pause, um die CPU nicht zu überlasten
