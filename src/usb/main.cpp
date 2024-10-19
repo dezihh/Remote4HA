@@ -1,6 +1,7 @@
 #include <WiFiManager.h>
 #include <WebServer.h>     // Webserver library
 #include <ESPAsyncWebServer.h>  // Asynchronous WebServer
+#include <ArduinoJson.h>
 #include <BLEDevice.h>
 #include <BLEHIDDevice.h>
 #include <BLEUtils.h>
@@ -50,7 +51,9 @@ const char* htmlLayout = R"(
     }
 </style>
 
-<div class="region">Region 1</div>
+<div class="region">
+<h1>Settings:</h1>
+<p>Werkstattmode<input type='checkbox' id='werkstattMode' onclick='toggleWerkstattMode()' /></p></div>
 <div class="region region2">Serial Output:<br><pre id="serialOutput">%SERIAL_OUTPUT%</pre></div>
 <div class="region">Region 3</div>
 <div class="region">Region 4</div>
@@ -66,7 +69,17 @@ const char* htmlLayout = R"(
                 serialOutputElement.scrollTop = 0; // Scroll to the top
             });
     }, 1000);
-</script>
+    function toggleWerkstattMode() {
+        var checkbox = document.getElementById('werkstattMode');
+        fetch('/werkstatt_mode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ werkstattMode: checkbox.checked })
+        });
+    }
+    </script>
 
 </body>
 </html>
@@ -74,14 +87,16 @@ const char* htmlLayout = R"(
 
 // USB Host
 class MyEspUsbHost : public EspUsbHost {
+
 public:
     bool usb_connected = false;  // Flag zum Verfolgen des USB-Geräte-Status
 
     void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
+ 
     usb_connected = true;  // USB-Gerät ist verbunden
 
     if (is_ble_connected) {  // Nur Datenübergabe, wenn BLE verbunden ist
-        String keyEntry = String("Key: ") + String(keycode, HEX) + " (ASCII: " + String((char)ascii) + ") Modifier: " + String(modifier, HEX) + "\n";
+        String keyEntry = String("Key: ") + String(keycode, HEX) + " (ASCII:" + String((char)ascii) + ") Modifier: " + String(modifier, HEX) + "\n";
         serialOutput = keyEntry + serialOutput;  // Append the new key entry to the beginning
         Serial.printf("%s", keyEntry.c_str());
         // HID-Report erstellen und senden
@@ -105,6 +120,8 @@ public:
         Serial.println("\nUSB device disconnected. Restarting USB host...");
         begin();  // Startet den USB-Host erneut, um nach neuen Geräten zu suchen
     }
+
+
 };
 
 MyEspUsbHost usbHost;
@@ -148,6 +165,25 @@ void updateSerialOutputTask() {
   Serial.println(serialOutput);  // Print to serial for testing
 }
 
+// Handler für Werkstatt-Mode
+void handleWerkstattMode() {
+    if (server.method() == HTTP_POST) {
+        String body = server.arg("plain");
+        DynamicJsonDocument doc(1024);
+        deserializeJson(doc, body);
+        bool werkstattMode = doc["werkstattMode"];
+        if (werkstattMode) {
+            Serial.println("Werkstatt-Mode aktiviert. USB und BLE Dienste werden deaktiviert.");
+            // USB und BLE deaktivieren
+            BLEDevice::stopAdvertising();
+        } else {
+            Serial.println("Werkstatt-Mode deaktiviert. USB und BLE Dienste werden aktiviert.");
+            BLEDevice::startAdvertising();
+        }
+    }
+    server.send(200, "application/json", "{\"status\": \"ok\"}");
+}
+
 void setup() {
     Serial.begin(115200);
     Serial.println("Starting setup...");
@@ -168,6 +204,7 @@ void setup() {
   // Start web server
   server.on("/", handleRoot);
   server.on("/serial", handleSerialOutput);
+  server.on("/werkstatt_mode", handleWerkstattMode);
   server.begin();
   Serial.println("Web server started.");
   server.handleClient();
