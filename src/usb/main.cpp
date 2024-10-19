@@ -56,15 +56,15 @@ const char* htmlLayout = R"(
   <div class="region">Region 5</div>
   <div class="region">Region 6</div>
 
-  <script>
+<script>
     setInterval(function() {
-      fetch('/serial')
-        .then(response => response.text())
-        .then(data => {
-          document.getElementById('serialOutput').textContent = data;
-        });
+        fetch('/serial')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('serialOutput').textContent = data;
+            });
     }, 1000);
-  </script>
+</script>
 </body>
 </html>
 )"; 
@@ -75,24 +75,22 @@ public:
     bool usb_connected = false;  // Flag zum Verfolgen des USB-Geräte-Status
 
     void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
-        usb_connected = true;  // USB-Gerät ist verbunden
-        if (is_ble_connected) {  // Nur Datenübergabe, wenn BLE verbunden ist
-            Serial.printf("Key: %02x(%c) Modifier: %02x\n", keycode, ascii, modifier);
-
-            // HID-Report erstellen und senden
-            uint8_t report[8] = {0};
-            report[0] = modifier;
-            report[2] = keycode;
-
-            input->setValue(report, sizeof(report));
-            input->notify();
-
-            delay(100);
-            memset(report, 0, sizeof(report));
-            input->setValue(report, sizeof(report));
-            input->notify();
-        } else {
-            Serial.println("BLE not connected, discarding key input.");
+    usb_connected = true;  // USB-Gerät ist verbunden
+    if (is_ble_connected) {  // Nur Datenübergabe, wenn BLE verbunden ist
+        serialOutput = String("Key: ") + String(keycode, HEX) + " (" + String((char)ascii) + ") Modifier: " + String(modifier, HEX);
+        Serial.printf("Key: %02x(%c) Modifier: %02x\n", keycode, ascii, modifier);
+        // HID-Report erstellen und senden
+        uint8_t report[8] = {0};
+        report[0] = modifier;
+        report[2] = keycode;
+        input->setValue(report, sizeof(report));
+        input->notify();
+        delay(100);
+        memset(report, 0, sizeof(report));
+        input->setValue(report, sizeof(report));
+        input->notify();
+    } else {
+        Serial.println("BLE not connected, discarding key input.");
         }
     }
 
@@ -136,7 +134,7 @@ void handleRoot() {
 
 // Function to handle fetching serial data via AJAX
 void handleSerialOutput() {
-  server.send(200, "text/plain", serialOutput);
+    server.send(200, "text/plain", serialOutput);
 }
 
 // Function to update the serial output
@@ -167,6 +165,7 @@ void setup() {
   server.on("/serial", handleSerialOutput);
   server.begin();
   Serial.println("Web server started.");
+  server.handleClient();
 
 /////////////////////////////////////////////////
 
