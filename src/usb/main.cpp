@@ -28,43 +28,46 @@ const char* htmlLayout = R"(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
+<style>
     body {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      height: 100vh;
-      margin: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        height: 100vh;
+        margin: 0;
     }
     .region {
-      border: 1px solid #ccc;
-      padding: 20px;
+        border: 1px solid #ccc;
+        padding: 20px;
     }
     .region2 {
-      grid-column: 2 / 3;
-      grid-row: 1 / 2;
-      text-align: center;
-      background-color: #f0f0f0;
+        grid-column: 2 / 3;
+        grid-row: 1 / 2;
+        text-align: center;
+        background-color: #f0f0f0;
+        max-height: 200px;
+        overflow-y: auto;
     }
-  </style>
-</head>
-<body>
-  <div class="region">Region 1</div>
-  <div class="region region2">Serial Output:<br><pre id="serialOutput">%SERIAL_OUTPUT%</pre></div>
-  <div class="region">Region 3</div>
-  <div class="region">Region 4</div>
-  <div class="region">Region 5</div>
-  <div class="region">Region 6</div>
+</style>
 
+<div class="region">Region 1</div>
+<div class="region region2">Serial Output:<br><pre id="serialOutput">%SERIAL_OUTPUT%</pre></div>
+<div class="region">Region 3</div>
+<div class="region">Region 4</div>
+<div class="region">Region 5</div>
+<div class="region">Region 6</div>
 <script>
     setInterval(function() {
         fetch('/serial')
             .then(response => response.text())
             .then(data => {
-                document.getElementById('serialOutput').textContent = data;
+                let serialOutputElement = document.getElementById('serialOutput');
+                serialOutputElement.innerHTML = data;
+                serialOutputElement.scrollTop = 0; // Scroll to the top
             });
     }, 1000);
 </script>
+
 </body>
 </html>
 )"; 
@@ -76,9 +79,11 @@ public:
 
     void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
     usb_connected = true;  // USB-Gerät ist verbunden
+
     if (is_ble_connected) {  // Nur Datenübergabe, wenn BLE verbunden ist
-        serialOutput = String("Key: ") + String(keycode, HEX) + " (" + String((char)ascii) + ") Modifier: " + String(modifier, HEX);
-        Serial.printf("Key: %02x(%c) Modifier: %02x\n", keycode, ascii, modifier);
+        String keyEntry = String("Key: ") + String(keycode, HEX) + " (ASCII: " + String((char)ascii) + ") Modifier: " + String(modifier, HEX) + "\n";
+        serialOutput = keyEntry + serialOutput;  // Append the new key entry to the beginning
+        Serial.printf("%s", keyEntry.c_str());
         // HID-Report erstellen und senden
         uint8_t report[8] = {0};
         report[0] = modifier;
@@ -91,7 +96,7 @@ public:
         input->notify();
     } else {
         Serial.println("BLE not connected, discarding key input.");
-        }
+    }
     }
 
     // Diese Methode wird aufgerufen, wenn ein USB-Gerät entfernt wurde
