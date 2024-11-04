@@ -16,6 +16,7 @@
 BLEHIDDevice* hid;
 BLECharacteristic* input;
 BLECharacteristic* output;
+bool is_ble_connected = false;
 
 struct MyIRData {
     decode_type_t protocol;
@@ -325,12 +326,12 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 }
 
 // Funktion zum Senden der Daten an die API von HA
-void sendDataToServer(String protocol, String codeData) {
+void sendHttpToServer(String provider, String address, String code) {
     HTTPClient http;
     http.begin(serverURL);
 
     // Festlegen der Nutzdaten
-    String payload = "key1=" + protocol + "&key2=" + codeData;
+    String payload = "provider=" + provider + "&address=" + address + "&code=" + code;
 
     // POST-Anfrage mit Nutzdaten senden
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
@@ -388,18 +389,39 @@ void setupWebServer(){
     server.begin();
 }
 
+
 // Define a callback class for BLE Server connection events
 class BLECallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) override {
-        Serial.println("Client connected.");
+        Serial.println("BLE Client connected.");
+        ws.textAll("BLE Client connected."); 
         // If needed, adjust power management or other settings here
     }
     
     void onDisconnect(BLEServer* pServer) override {
-        Serial.println("Client disconnected.");
+        Serial.println("BLE Client disconnected.");
+        ws.textAll("BLE advertising..."); 
         BLEDevice::startAdvertising();  // Restart advertising when client disconnects
     }
 };
+    // Funktion zum Senden der BLE Nachricht
+void sendBleReport(uint8_t modifier, uint8_t keycode) {
+    if (is_ble_connected) {
+        uint8_t report[8] = {0};
+        report[0] = modifier; // Setze das Modifier-Byte
+        report[2] = keycode;  // Setze den Keycode
+        input->setValue(report, sizeof(report)); // Setze den Wert des Reports
+        input->notify(); // Sende den Report über BLE
+
+        // Optional: Hier könnte eine Verzögerung und ein Reset des Reports erfolgen
+        delay(100);
+        memset(report, 0, sizeof(report)); // Setze den Report zurück
+        input->setValue(report, sizeof(report)); // Leeren Report senden
+        input->notify(); // Sende den leeren Report über BLE
+    }else {
+            Serial.println("BLE not connected, discarding key input.");
+        }
+}
 
 void setupBLE() {
     BLEDevice::init("ESP32 BLE Keyboard");
@@ -453,9 +475,16 @@ void loop() {
                          " - Wiederholung: " + String(irData.isRepeat ? "Ja" : "Nein");
       Serial.println(outputStr);
       if (outputStr != 0) {  // Nur senden wenn ein gültiger Command vorliegt
-            ws.textAll(outputStr);
+        sendHttpToServer("IR", String(irData.address, HEX), String(irData.command, HEX));
+        ws.textAll(outputStr);
       }
       IrReceiver.resume();
+    }
+    if (!is_ble_connected) {
+        BLEDevice::startAdvertising();
+        Serial.println("Re-starting BLE advertising...");
+        ws.textAll("Re-starting BLE advertising...");
+        delay(500);
     }
 
 }
