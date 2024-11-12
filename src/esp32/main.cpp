@@ -416,29 +416,30 @@ void setupBLE() {
     Serial.println("Waiting for a client connection to notify...");
 }
 // Funktion zum Senden eines BLE-Reports
-void sendBle(uint8_t modifier, uint8_t keycode) {
-    if ( 1 == 1) {
-        uint8_t report[8] = {0};
-        report[0] = modifier; // Setze das Modifier-Byte
-        //report[2] = keycode;  // Setze den Keycode
-        input->setValue(report, sizeof(report)); // Setze den Wert des Reports
-        input->notify(); // Sende den Report über BLE
-        delay(10);
-
-        //report[0] = modifier; // Setze das Modifier-Byte
-        report[2] = keycode;  // Setze den Keycode
-        input->setValue(report, sizeof(report)); // Setze den Wert des Reports
-        input->notify(); // Sende den Report über BLE
-
-        // Optional: Hier könnte eine Verzögerung und ein Reset des Reports erfolgen
-        delay(100);
-        memset(report, 0, sizeof(report)); // Setze den Report zurück
-        input->setValue(report, sizeof(report)); // Leeren Report senden
-        input->notify(); // Sende den leeren Report über BLE
-    }else {
-            Serial.println("BLE not connected, discarding key input.");
-        }
-}
+void sendBle(uint8_t modifier, uint8_t keycode) {  
+    if (is_ble_connected) {  
+        uint8_t report[8] = {0};  
+        report[0] = modifier; // Setze das Modifier-Byte  
+        report[2] = keycode;  // Setze den Keycode  
+        input->setValue(report, sizeof(report)); // Setze den Wert des Reports  
+  
+        // Debug-Ausgabe  
+        Serial.print("Sending BLE Report: Modifier: ");  
+        Serial.print(modifier, HEX);  
+        Serial.print(" Keycode: ");  
+        Serial.println(keycode, HEX);  
+  
+        input->notify(); // Sende den Report über BLE  
+        delay(10);  
+  
+        // Leeren Report senden  
+        memset(report, 0, sizeof(report));  
+        input->setValue(report, sizeof(report));  
+        input->notify(); // Sende den leeren Report über BLE  
+    } else {  
+        Serial.println("BLE not connected, discarding key input.");  
+    }  
+}  
 
 
 
