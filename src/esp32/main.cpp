@@ -2,17 +2,19 @@
 #include <WiFiManager.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <BleKeyboard.h> 
+
 //#include <BLEServer.h>
 //#include <BLEDevice.h>
 //#include <BLEHIDDevice.h>
 //#include <BLEUtils.h>
-#include <NimBLEDevice.h>
-#include <NimBLEServer.h>
-#include <NimBLECharacteristic.h>
-#include <NimBLEHIDDevice.h>  // Für HID-Profile, falls nötig
+//#include <NimBLEDevice.h>
+//#include <NimBLEServer.h>
+//#include <NimBLECharacteristic.h>
+//#include <NimBLEHIDDevice.h>  // Für HID-Profile, falls nötig
 
-#include <HIDTypes.h>
-#include <HIDKeyboardTypes.h>
+//#include <HIDTypes.h>
+//#include <HIDKeyboardTypes.h>
 //#include <WebServer.h>
 //#include <ESPmDNS.h>
 //#define USE_USB 
@@ -30,12 +32,9 @@ bool keyPressed = false;
 
 
 // BLE HID service variables
-//BLEHIDDevice* hid;
-NimBLEHIDDevice* hid;
-BLECharacteristic* input;
-BLECharacteristic* output;
+BleKeyboard bleKeyboard("ESP32 BLE Keyboard", "ESP32 BLE Keyboard", 100);
 bool is_ble_connected = false;
-void sendBle(uint8_t modifier, uint8_t keycode);
+void sendBle(uint8_t modifier, const String& keyString);
 void sendIR(uint32_t address, uint8_t command, bool repeats, const String& protocol);
 void handleServerCommand(AsyncWebServerRequest *request);
 
@@ -59,40 +58,34 @@ AsyncWebSocket ws("/ws");
 
 // Routingstruktur mit Zielwerten für Protokoll, Adresse, Command und Modifier
 struct Route {
-    String source;           // Quelle
-    decode_type_t protocol;   // IR Protocol
-    uint8_t command;         // IR + BLE Command
-    uint8_t modifier;        // BLE Modifier
-    uint32_t address;        // IR Adress
-    bool isRepeat;             // IR Repeat
-    unsigned long KeyTime;   // IR Key
-    String actionFuncName;   // Sendefunction
-    decode_type_t outputProtocol; // Zielprotokoll (IR)
-    uint32_t outputAddress;  // Zieladresse (IR)
-    uint8_t outputCommand;   // Ziel-Command  
-    uint8_t outputModifier;  // Ziel-Modifier (BLE)
-    bool oRepeat;             // Ziel-Repeat (IR)
-    unsigned long outKeyTime; // BLE 
+    String source;                // Quelle NEC, DENON...
+    decode_type_t protocol;       // IR Protocol, sonst UNKNOWN
+    uint8_t command;              // IR + IF
+    uint8_t modifier;             // BLE Modifier
+    uint32_t address;             // IR Adress
+    uint8_t isRepeat;             // IR Repeat
+    bool KeyLong;                 // IR Key
+    String actionFuncName;        // Sendefunction
+    decode_type_t outputProtocol; // IR Zielprotokoll 
+    uint32_t outputAddress;       // IR Zieladresse 
+    uint8_t outputCommand;        // IR Ziel-Command  
+    uint8_t outputModifier;       // BLE Ziel-Modifier 
+    String commandBle;            // BLE Command (Ble)
+    bool oRepeat;                 // IR Ziel-Repeat (IR)
 };
 
 // Statische Routingtabelle
 Route routes[] = {
     //Prov, Prot, Com, Mod, Addr, repeat, kTim, sProv, oAddr, oCom, oMod, oRepeat, keyPresstime
-    {"IR", NEC, 0xe, 0, 0x0000, false, 0, "sendIR", NEC, 0x0000, 0xe, 0, false, 1},  // Example IR Route 
-    {"IR", NEC, 0x12, 0, 0x0000, false, 0, "sendIR", SONY, 0x20, 0x11, 0, true, 1}, 
-    {"IR", NEC, 0xa, 0, 0x0000, false, 0, "sendHttpToAPI", NEC, 0x000, 0xa, 0, false, 1}, 
-    {"IR", NEC, 0xf, 0, 0x0000, false, 0, "sendIR", DENON, 0x00, 0x12, 0, false, 1},
-    {"IR", NEC, 0x13, 0, 0x0000, false, 0, "sendHttpToAPI", NEC, 0x0000, 0x13, 0, false, 1}, 
+    {"IR", NEC, 0xe,, 0x0000, 1, 0, "sendIR", NEC, 0x0000, 0xe, 0, "A", 1},                 // Example IR Route 
+    {"IR", NEC, 0x12, 0, 0x0000, 1, 0, "sendIR", SONY, 0x20, 0x11, 0, true, 1}, 
+    {"IR", NEC, 0xa, 0, 0x0000, 1, 0, "sendHttpToAPI"}, 
+    {"IR", NEC, 0x13, 0, 0x0000, 1, 0, "sendHttpToAPI"}, 
 
-    {"IR", NEC, 0x4c, 0, 0x0000, false, 0, "sendBle", UNKNOWN, 0x0000, 0xb, 0x0, false, 1}, 
-    {"IR", NEC, 0x50, 0, 0x0000, false, 0, "sendBle", UNKNOWN, 0x0000, 0x11, 0x0, false, 1}, 
-    {"IR", NEC, 0x48, 0, 0x0000, true, 0, "sendBle", UNKNOWN, 0x0000, 0x19, 0x1, true, 1}, 
-    {"IR", NEC, 0x44, 0, 0x0000, false, 0, "sendBle", UNKNOWN, 0x0000, 0x23, 0x0, true, 1}, 
-
-    {"IR", DENON, 0x12, 0, 0x00FF, false, 0, "sendIR", SONY, 0x1234, 0x34, 0, false, 1}, 
-    {"IF", UNKNOWN, 0, 0xA1, 0, false, 0, "sendBle", UNKNOWN, 0, 0x0, 0x1, false, 1},
-    {"IR", SONY, 0x15, 0, 0x0101, false, 0, "sendHttpToAPI", UNKNOWN, 0, 0, 0, false, 1},
-    {"IR", UNKNOWN, 0x15, 0, 0x0044, false, 0, "sendBle", UNKNOWN, 0, 0x1, 0x0, false, 1}
+    {"IR", NEC, 0x4c, 0, 0x0000, 1, 0, "sendBle", UNKNOWN, 0x0000, 0xb, 0, "A", 0}, 
+    {"IR", NEC, 0x50, 0, 0x0000, 0, 0, "sendBle", UNKNOWN, 0x0000, 0x11, LEFT_SHIFT, B, 2}, 
+    {"IR", NEC, 0x48, 0, 0x0000, 1, 0, "sendBle", UNKNOWN, 0x0000, 0x19, CTRL, KEY_LEFT_SHIFT, A, 1}, 
+    {"IR", NEC, 0x44, 0, 0x0000, 0, 0, "sendBle", UNKNOWN, 0x0000, 0x23, , C, 1}, 
 };
 
 const size_t routeCount = sizeof(routes) / sizeof(Route);
@@ -375,46 +368,7 @@ void handleServerCommand(AsyncWebServerRequest *request) {
         request->send(400, "text/plain", "Missing function parameter");
     }
 }
-// Define a callback class for BLE Server connection events
-class BLECallbacks : public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) override {
-        Serial.println("BLE Client connected.");
-        is_ble_connected = true;
-        // If needed, adjust power management or other settings here
-    }
-    
-    void onDisconnect(BLEServer* pServer) override {
-        Serial.println("BLE Client disconnected.");
-        is_ble_connected = false;
-        BLEDevice::startAdvertising();  // Restart advertising when client disconnects
-    }
-};
-void setupBLE() {
-    BLEDevice::init("ESP32 BLE Keyboard");
-    BLEServer* pServer = BLEDevice::createServer();
-    pServer->setCallbacks(new BLECallbacks());
 
-    // hid = new BLEHIDDevice(pServer);
-    hid = new NimBLEHIDDevice(pServer);
-    input = hid->inputReport(1);
-    output = hid->outputReport(1);
-
-    hid->manufacturer()->setValue("ESP32");
-    hid->pnp(0x01, 0x02e5, 0xabcd, 0x0110);
-    hid->hidInfo(0x00, 0x01);
-
-    BLESecurity* pSecurity = new BLESecurity();
-    pSecurity->setAuthenticationMode(ESP_LE_AUTH_BOND);
-
-    hid->reportMap((uint8_t*)reportMap, sizeof(reportMap));
-    hid->startServices();
-
-    BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->setAppearance(HID_KEYBOARD);
-    pAdvertising->addServiceUUID(hid->hidService()->getUUID());
-    pAdvertising->start();
-    Serial.println("Waiting for a client connection to notify...");
-}
 // Funktion zum Senden eines BLE-Reports
 void sendBle(uint8_t modifier, uint8_t keycode) {  
     if (is_ble_connected) {  
@@ -450,7 +404,7 @@ void setup() {
     setupWiFi();
     setupWebServer();  // Webserver initialisieren
     setupIRRecv();
-    setupBLE();
+    bleKeyboard.begin();  // BLE Keyboard initialisieren
 
 }
 
