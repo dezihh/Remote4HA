@@ -404,30 +404,31 @@ void handleServerCommand(AsyncWebServerRequest *request) {
 }
 
 // Funktion zum Senden eines BLE-Reports
-void sendBle(uint8_t modifier, uint8_t keycode) {  
-    if (is_ble_connected) {  
-        uint8_t report[8] = {0};  
-        report[0] = modifier; // Setze das Modifier-Byte  
-        report[2] = keycode;  // Setze den Keycode  
-        input->setValue(report, sizeof(report)); // Setze den Wert des Reports  
+void sendBle(uint8_t modifier, const String& keyString) {  
+    if (bleKeyboard.isConnected()) {  
+        // Modifier anwenden, falls vorhanden  
+        if (modifier != 0) {  
+            bleKeyboard.press(modifier);  
+        }  
+  
+        // KeyString senden  
+        bleKeyboard.print(keyString);  
+  
+        // Modifier loslassen, falls angewendet  
+        if (modifier != 0) {  
+            bleKeyboard.release(modifier);  
+        }  
   
         // Debug-Ausgabe  
         Serial.print("Sending BLE Report: Modifier: ");  
         Serial.print(modifier, HEX);  
-        Serial.print(" Keycode: ");  
-        Serial.println(keycode, HEX);  
-  
-        input->notify(); // Sende den Report über BLE  
-        delay(10);  
-  
-        // Leeren Report senden  
-        memset(report, 0, sizeof(report));  
-        input->setValue(report, sizeof(report));  
-        input->notify(); // Sende den leeren Report über BLE  
+        Serial.print(" KeyString: ");  
+        Serial.println(keyString);  
     } else {  
         Serial.println("BLE not connected, discarding key input.");  
     }  
-}  
+} 
+
 
 
 
