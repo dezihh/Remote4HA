@@ -1,23 +1,14 @@
 #include <Arduino.h>
 #include <WiFiManager.h>
 #include <AsyncTCP.h>
+#include "webpage.h"
 #include <ESPAsyncWebServer.h>
-#include <BleKeyboard.h>
-
+#include <Preferences.h>
 #include <BleKeyboard.h> 
+#include <ArduinoJson.h>
+#include <Preferences.h>  // Für das Speichern und Laden von Daten
+#include <LittleFS.h>
 
-//#include <BLEServer.h>
-//#include <BLEDevice.h>
-//#include <BLEHIDDevice.h>
-//#include <BLEUtils.h>
-//#include <HIDTypes.h>
-//#include <HIDKeyboardTypes.h>
-#include <WebServer.h>
-#include <ESPmDNS.h>
-//#include <NimBLEDevice.h>
-//#include <NimBLEServer.h>
-//#include <NimBLECharacteristic.h>
-//#include <NimBLEHIDDevice.h>  // Für HID-Profile, falls nötig
 
 //#include <HIDTypes.h>
 //#include <HIDKeyboardTypes.h>
@@ -36,21 +27,12 @@ bool usb_connected = false;
 unsigned long keyPressStartTime = 0;
 bool keyPressed = false;
 int longKey = 500;
-uint8_t longKey = 500;
-
-
-BleKeyboard bleKeyboard("ESP Console");
 
 // BLE HID service variables
-//BLEHIDDevice* hid;
-/*NimBLEHIDDevice* hid;
-BLECharacteristic* input;
-BLECharacteristic* output;*/
 BleKeyboard bleKeyboard("ESP32 BLE Keyboard", "ESP32 BLE Keyboard", 100);
 bool is_ble_connected = false;
-void sendBle(uint8_t modifier, const String& keyString);
+void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat);
 void sendIR(uint32_t address, uint8_t command, bool repeats, const String& protocol);
-void sendBle(uint8_t modifier, const String& keyString, bool repeat);
 void handleServerCommand(AsyncWebServerRequest *request);
 void sendHttpToAPI(String provider, String data);
 
@@ -58,36 +40,22 @@ void sendHttpToAPI(String provider, String data);
 const int RECV_PIN = 15;  // (15)(2) IR Empfänger Pin
 const int SEND_PIN = 4;   // (4)(3)IR Sender Pin
 #define NO_LED_FEEDBACK_CODE
-struct IRrcv {
-    decode_type_t protocol;
+
+Preferences preferences;
+bool sendDataDefaultToApi = false;
+
+struct IRrcv {    //Eingang IR
+    decode_type_t protocol; 
+    uint8_t code;
     uint32_t address;
-    uint8_t command;
     bool isRepeat;
 };
 
-struct IFrcv {  
-    uint8_t modifier;  
-    uint8_t keycode;  
-    int keyLong;  
-};  
-
-struct sendBLE {  
-    uint8_t oBleModifier;  
-    String oBleCode;  
-    bool oRBleRepeat;  
-};
-
-struct IFRecv {  
+struct USBRecv {    // Eingang USB
     uint8_t modifier;  
     uint8_t command;  
-    bool isRepeat;  
+    bool keyLong;  
 };  
-
-struct sendBLE {  
-    decode_type_t modifier;  
-    String code;  
-    bool isRepeat;  
-};
 
 
 // Common variables
@@ -95,140 +63,140 @@ const char* serverURL = "http://192.168.10.3:8125/api/webhook/myid";
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
+// Routingstruktur mit Zielwerten für Protokoll, Adresse, Command und Modifier
+const size_t MAX_ROWS = 100;
 struct Route {
     String source;               // IR, IF
     decode_type_t protocol;      // IR Prot
-    uint8_t command;             // IR Command
-    uint32_t address;            // IR Address
-    uint8_t isRepeat;            // IR Repeat 0, 1 oder 2  
-    uint8_t keycode;             // IF Keycode
-    uint8_t modifier;            // IF Modifier
-    int keyLong;                 // IF 0, 1 oder 2  
+    uint8_t code;                // IR Command
+    uint32_t address;            // IR Address/
+    int isRepeat;                // IR Repeat 0, 1 oder 2  
+    uint8_t modifier;            // USB Keycode
+    uint8_t command;             // USB Modifier
+    int keyLong;                 // USB 0, 1 oder 2  
 
-    // Funktionszeiger für spezifische Aktionen
-    void (*irActionFunc)(uint32_t, uint8_t, bool, const String&); // Funktionszeiger für sendIR
-    void (*bleActionFunc)(uint8_t, const String&, bool);          // Funktionszeiger für sendBle
-    void (*httpActionFunc)(String, String);                       // Funktionszeiger für sendHttpToAPI
-
-    decode_type_t IRprotocol;   // IR Prot
-    uint8_t IRcommand;          // IR Command
-    uint32_t IRaddress;         // IR Address
-    bool IRisRepeat;            // IR Repeat 0, 1 oder 2  
-    uint8_t oBleModifier;       // BLE Modifier
-    String oBleCode;            // BLE Command
-    bool oRBleRepeat;           // BLE Repeat
-    String source;              // IR, IF
-    decode_type_t protocol;     // IR Prot
-    uint8_t command;            // IR Command
-    uint32_t address;           // IR Address
-    uint8_t isRepeat;           // IR Repeat 0, 1 oder 2  
-    uint8_t keycode;            // IF Keycode
-    uint8_t modifier;           // IF Modifier
-    uint8_t keyLong;            // IF 0, 1 oder 2  
-    // Ende Inputs
-    void (*actionFunc)(IRRecv irData); // oder sendBLE / sendHttpToAPI  
-    decode_type_t IRprotocol;   // IR Prot
-    uint8_t IRcommand;          // IR Command
-    uint32_t IRaddress;         // IR Address
-    bool IRisRepeat;            // IR Repeat 0, 1 oder 2  
-    decode_type_t modifier;     // BLE Modifier
-    String code;                // BLE Command
-    bool oRBleRepeat;           // BLE Repeat
+    String actionFuncName;       // Sendefunction
+    decode_type_t oIRprot;       // IR Prot
+    uint8_t oIRcode;             // IR Code
+    uint32_t oIRaddress;         // IR Address
+    bool oIRisRepeat;            // IR Repeat 0 oder 1 
+    uint8_t oBleMod;             // BLE Modifier
+    uint8_t oBleCode;            // BLE Command
+    bool oRBleRepeat;            // BLE Repeat
 };
 
 
-
+Route routeTable[MAX_ROWS];
 // Statische Routingtabelle
-Route routeTable[] = {
-    {"IR", NEC, 0xe, 0x0, 0x0000, 2, 0x0, 0, &sendIR, nullptr, nullptr, UNKNOWN, 0xd, 0x0000, 0, KEY_LEFT_SHIFT, "A", 0},
-    {"IF", UNKNOWN, 0x0, 0x0, 0x0000, 2, 0x0, 0, nullptr, &sendBle, nullptr, UNKNOWN, 0x0, 0x0000, 0, 0, "B", 0},
-    {"API", UNKNOWN, 0x0, 0x0, 0x0000, 2, 0x0, 0, nullptr, nullptr, &sendHttpToAPI, UNKNOWN, 0x0, 0x0000, 0, 0, "", 0}
-};
+/* Route routeTable[MAX_ROWS] = {
+    //{"src", IRprot, IRCod, IRAdr, IRRep, USmod, USkey, USLng, action, nullptr, nullptr, UNKNOWN, 0xd, 0x0000, 0, KEY_LEFT_SHIFT, "A", 0},
+    {"IR", NEC, 0xe, 0x0000, 2, 0x0, 0, 0, "sendIR", SONY, 0xe, 0x0001, 2, 0, 0, 0},
+    {"IR", NEC, 0x12, 0x0000, 2, 0x0, 0, 0, "sendBLE", UNKNOWN, 0x0, 0x0000, 0, KEY_LEFT_SHIFT, 0x4, 0},
+    {"IR", NEC, 0xa, 0x0000, 2, 0x0, 0, 0, "sendHttpToAPI", UNKNOWN, 0x0, 0x0000, 0, 0, 0, 0}
+}; */
+
+bool sendToApi = false; // Boolescher Wert für die Radiobox
+
+// out
+// BLE: int8_t modifier, uint8_t keycode, bool isRepeat
+// API: String source, String data
+//  IR: uint32_t address, uint8_t command, bool repeats, const String& protocol
 
 
-const int routeCount = sizeof(routeTable) / sizeof(routeTable[0]);  
-
-void route(String source, IRrcv irData) {  
-    for (int i = 0; i < routeCount; i++) {  
-        Route& route = routeTable[i];  
-  
-        if (source == route.source && irData.protocol == route.protocol &&  
-            irData.command == route.command && irData.address == route.address) {  
-  
-            bool isRepeatCondition = (route.isRepeat == 2) || (route.isRepeat == 1 && irData.isRepeat) || (route.isRepeat == 0 && !irData.isRepeat);  
-            if (isRepeatCondition) {  
-                // Aktion ausführen
-                if (route.irActionFunc) {  
-                    // Ruft sendIR auf
-                    route.irActionFunc(route.address, route.command, irData.isRepeat, "IR Protocol String");  
-                } else if (route.bleActionFunc) {  
-                    // Ruft sendBle auf
-                    route.bleActionFunc(route.oBleModifier, route.oBleCode, route.oRBleRepeat);  
-                } else if (route.httpActionFunc) {  
-                    // Ruft sendHttpToAPI auf
-                    String params = "source=" + source + "&protocol=" + String(irData.protocol) +  
-                                    "&command=" + String(irData.command) + "&address=" + String(irData.address) +  
-                                    "&isRepeat=" + String(irData.isRepeat);  
-                    route.httpActionFunc("Provider", params);  
-                }  
-                return; // Treffer gefunden, keine weitere Verarbeitung notwendig  
-            }  
-        }  
-    }  
-  
-    // Wenn kein Treffer gefunden wurde  
-    String params = "source=" + source + "&protocol=" + String(irData.protocol) +  
-                    "&command=" + String(irData.command) + "&address=" + String(irData.address) +  
-                    "&isRepeat=" + String(irData.isRepeat);  
-    sendHttpToAPI("DefaultProvider", params);  
-}
-
-Route routeTable[] = {
-    // {"Quelle", IR_Prot, IR_Code, IR_Addr, IR_Rep, IF code, IF Mod, IF KL, Func, "BLE mod", BLE code, KL, "IR_Prot", code, addr,mod}
-    {"IR", NEC, 0xe,, 0x0000, 2, 0x0, ,0, "sendBLE", LEFT_SHIFT, "A", 0,"",0x0,0x0,0}, 
-    {"IR", NEC, 0xe,, 0x0000, 2, 0x0, ,0, "sendIR", , "", 0,"SONY",0xf,0x0001,0}, 
-    {"IR", NEC, 0xc,, 0x0000, 2, 0x0, ,0, "sendHttpToAPI(", , "", 0, "", 0x0, 0x000, 0} 
-};
 
 const int routeCount = sizeof(routeTable) / sizeof(routeTable[0]);  
 
-void route(String source, IRRecv irData) {  
-    for (int i = 0; i < routeCount; i++) {  
-        Route& route = routeTable[i];  
-  
-        if (source == route.source && irData.protocol == route.protocol &&  
-            irData.command == route.command && irData.address == route.address) {  
-  
-            bool isRepeatCondition = (route.isRepeat == 2) || (route.isRepeat == 1 && irData.isRepeat) || (route.isRepeat == 0 && irData.isRepeat);  
-            if (isRepeatCondition) {  
-                // Aktion ausführen  
-                if (route.actionFunc == sendIR) {  
-                    IRRecv outgoingData = {route.protocol, route.address, route.command, irData.isRepeat};  
-                    route.actionFunc(outgoingData);  
-                } else if (route.actionFunc == sendBLE) {  
-                    // sendBLE benötigt die Daten aus routeTable  
-                    uint8_t outgoingModifier = route.modifier;  
-                    String outgoingCommandBLE = route.commandBLE;  
-                    bool outgoingRepeat = route.oRBleRepeat;  
-                    route.actionFunc(outgoingModifier, outgoingCommandBLE, outgoingRepeat);  
-                } else if (route.actionFunc == sendHttpToAPI) {  
-                    String params = "source=" + source + "&protocol=" + String(irData.protocol) +  
-                                    "&command=" + String(irData.command) + "&address=" + String(irData.address) +  
-                                    "&isRepeat=" + String(irData.isRepeat);  
-                    route.actionFunc(params);  
-                }  
-                return; // Treffer gefunden, keine weitere Verarbeitung notwendig  
-            }  
-        }  
-    }  
-  
-    // Wenn kein Treffer gefunden wurde  
-    String params = "source=" + source + "&protocol=" + String(irData.protocol) +  
-                    "&command=" + String(irData.command) + "&address=" + String(irData.address) +  
-                    "&isRepeat=" + String(irData.isRepeat);  
-    sendHttpToAPI(params); // Senden der
+void route(String source, IRrcv irData) {
+    for (int i = 0; i < sizeof(routeTable) / sizeof(Route); i++) {
+        Route& route = routeTable[i];
+
+        // Überprüfung für IR-Daten
+        if (source == "IR" &&
+            irData.protocol == route.protocol &&
+            irData.code == route.code &&
+            irData.address == route.address) {
+            
+            // Prüfbedingung für Repeat
+            bool repeatCondition = (route.isRepeat == 2) || 
+                                   (route.isRepeat == 1 && irData.isRepeat) || 
+                                   (route.isRepeat == 0 && !irData.isRepeat);
+
+            if (repeatCondition) {
+                // Aktion ausführen basierend auf actionFuncName
+                if (route.actionFuncName == "sendIR") {
+                    bool finalRepeat = (route.isRepeat == 2) ? irData.isRepeat : route.oIRisRepeat;
+                    // ANCHOR WS Log
+                    ws.textAll("IR command send");
+                    Serial.println("sendIR: Matched, Resend IR Data");
+                    sendIR(route.oIRaddress, route.oIRcode, finalRepeat, String(route.oIRprot));
+                } else if (route.actionFuncName == "sendBLE") {
+                    bool finalRepeat = (route.isRepeat == 2) ? irData.isRepeat : route.oRBleRepeat;
+                    Serial.println("sendIR: Matched, Sent BLE Data");
+                    sendBle(route.oBleMod, route.oBleCode, finalRepeat);
+                } else if (route.actionFuncName == "sendHttpToAPI") {
+                    String data = "protocol=" + String(irData.protocol) +
+                                  "&code=" + String(irData.code) +
+                                  "&address=" + String(irData.address) +
+                                  "&isRepeat=" + String(irData.isRepeat);
+                    Serial.println("sendIR: Matched, Sent API Data");
+                    sendHttpToAPI(source, data);
+                }
+                return; // Aktion ausgeführt, keine weitere Prüfung nötig
+            }
+        }
+    }
+
+    // Kein Match gefunden, Standardaktion
+    String data = "protocol=" + String(irData.protocol) +
+                  "&code=" + String(irData.code) +
+                  "&address=" + String(irData.address) +
+                  "&isRepeat=" + String(irData.isRepeat);
+    sendHttpToAPI(source, data);
 }
 
+void route(String source, USBRecv usbData) {
+    for (int i = 0; i < sizeof(routeTable) / sizeof(Route); i++) {
+        Route& route = routeTable[i];
+
+        // Überprüfung für USB-Daten
+        if (source == "IF" &&
+            usbData.modifier == route.modifier &&
+            usbData.command == route.command) {
+            
+            // Prüfbedingung für keyLong
+            bool keyLongCondition = (route.keyLong == 2) || 
+                                     (route.keyLong == 1 && usbData.keyLong) || 
+                                     (route.keyLong == 0 && !usbData.keyLong);
+
+            if (keyLongCondition) {
+                // Aktion ausführen basierend auf actionFuncName
+                if (route.actionFuncName == "sendIR") {
+                    bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oIRisRepeat;
+                    Serial.println("USB: Matched, Sent IR Data");
+                    sendIR(route.oIRaddress, route.oIRcode, finalRepeat, String(route.oIRprot));
+                } else if (route.actionFuncName == "sendBLE") {
+                    bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oRBleRepeat;
+                    Serial.println("USB: Matched, Sent BLE Data");
+                    sendBle(route.oBleMod, route.oBleCode, finalRepeat);
+                } else if (route.actionFuncName == "sendHttpToAPI") {
+                    String data = "modifier=" + String(usbData.modifier) +
+                                  "&command=" + String(usbData.command) +
+                                  "&keyLong=" + String(usbData.keyLong);
+                    Serial.println("USB: Matched, Sent API Data");
+                    sendHttpToAPI(source, data);
+                }
+                return; // Aktion ausgeführt, keine weitere Prüfung nötig
+            }
+        }
+    }
+
+    // Kein Match gefunden, Standardaktion
+    String data = "modifier=" + String(usbData.modifier) +
+                  "&command=" + String(usbData.command) +
+                  "&keyLong=" + String(usbData.keyLong);
+    Serial.println("None: No Match found");
+    sendHttpToAPI(source, data);
+}
 
 
 // Funktion zum Senden einer HTTP-Anfrage an die API
@@ -249,60 +217,6 @@ void sendHttpToAPI(String provider, String data) {
     http.end();
 }
 
-// Datenverarbeitung und Routinglogik
-/* 
-void processAndRouteData(const String& source, IRrcv& data) {
-    bool routeMatched = false;
-
-    for (size_t i = 0; i < routeCount; ++i) {
-        const Route& route = routes[i];
-
-        bool matchesSource = (route.source == source);
-        bool matchesProtocol = (route.protocol == UNKNOWN || route.protocol == data.protocol);
-        bool matchesCode = (route.command == 0 || route.command == data.command);
-        bool matchesAddress = (route.address == 0 || route.address == data.address);
-        bool matchesRepeat = (route.oRepeat  || route.oRepeat == data.isRepeat);
-
-        if (matchesSource && matchesProtocol && matchesCode && matchesAddress && matchesRepeat) {
-            routeMatched = true;
-            Serial.printf("Routing Matched");
-            
-            applyRouteTransformations(data, route);
-
-            if (route.actionFuncName == "sendIR") {
-                String irstr = "Route Selected: IR sending Address: " + String(data.address, HEX) + " - Code: " + String(data.command, HEX) + 
-                    " - Repeat: " + data.isRepeat + " - Protocol: " + (getProtocolString(data.protocol));
-                Serial.println(irstr);
-                sendIR(data.address, data.command, data.isRepeat, (getProtocolString(data.protocol)));
-            } else if (route.actionFuncName == "sendBle") {
-                // ANCHOR Fix it
-                //String BLEstr = "BLE Protocol: Modifier: " + String(data.modifier, HEX) + " Code: " + String (data.command, HEX) + " Time: " + route.outKeyTime;
-                //Serial.println(BLEstr);
-                // ANCHOR Fix it
-                //sendBle(data.modifier, data.command);
-            } else if (route.actionFuncName == "sendHttpToAPI") {
-                Serial.print("Route select: API: ");
-                String IRstr = "IR to API Protocol: " + String(getProtocolString(data.protocol)) + " Address: " + String(data.address, HEX) + " Code: " + String (data.command, HEX) + " Repeat: " + data.isRepeat ;
-                Serial.println(IRstr);
-                sendHttpToAPI("IR", "&Protocol=" + String(getProtocolString(data.protocol)) + "&Address" + String( data.address, HEX) + "&Code=" + String(data.command, HEX) + "&Repeat=" + data.isRepeat);
-             }
-            break;
-        }
-    }
-
-    // Falls keine Route gefunden wurde, senden wir die Daten an die API als Standard-Route
-    if (!routeMatched) {
-        Serial.println("Keine passende Route gefunden, Daten werden an API gesendet.");
-        if (source == "IR") {
-            //String(getProtocolString(data.protocol));
-            String IRstr = "IR Protocol: " + String(getProtocolString(data.protocol)) + " Address: " + String(data.address, HEX) + " Code: " + String (data.command, HEX) + " Repeat: " + bool (data.isRepeat);
-            Serial.println(IRstr);
-            sendHttpToAPI("IR", "&Protocol=" + String(getProtocolString(data.protocol)) + "&Address" + String( data.address, HEX) + "&Code=" + String(data.command, HEX) + "&Repeat=" + data.isRepeat);
-        } else {
-            Serial.println("Keine gültige Source gefunden");
-        }
-    }
-} */
 // ANCHOR USB beginns
 //19(D-) + 20(D+) (USB not UART) 
 void setupUSBHost() {
@@ -320,14 +234,10 @@ void readUSB(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
     } else {  // Taste wurde losgelassen
         // Berechne die gedrückte Zeit
         unsigned long duration = millis() - keyPressStartTime;  // Zeitdauer in Millisekunden
-        IFrcv data;
-        data.keycode = (keycode, HEX);
-        data.modifier = (modifier, HEX);
-        data.keyLong = (duration > longKey); // Setze isRepeat auf true oder false 
-        IFrcv data;
+        USBRecv data;
         data.command = (keycode, HEX);
         data.modifier = (modifier, HEX);
-        data.isRepeat = (duration > longKey); // Setze isRepeat auf true oder false 
+        data.keyLong = (duration > longKey); // Setze isRepeat auf true oder false 
         String keyEntry = String("Key: ") + String(keycode, HEX) + 
                             " (ASCII:" + String((char)ascii) + 
                             ") Modifier: " + String(modifier, HEX) + 
@@ -338,14 +248,11 @@ void readUSB(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
 
         // Reset der Statusvariablen
         keyPressed = false;  // Setze den Status auf "Taste nicht gedrückt"
-//        route("IF", data);  // Rufe die Routingfunktion auf 
-
         
         // Routenaufruf mit den erstellten Daten  
-        route("IF", data);  // Rufe die Routingfunktion auf 
+        //route("IF", data);  // Rufe die Routingfunktion auf 
         
     }
-}
 }
 // ANCHOR IR beginns
 void setupIRRecv(){
@@ -391,10 +298,8 @@ void readIR() {
         IRrcv data;
         data.protocol = IrReceiver.decodedIRData.protocol;
         data.address = IrReceiver.decodedIRData.address;
-        data.command = IrReceiver.decodedIRData.command;
+        data.code = IrReceiver.decodedIRData.command;
         data.isRepeat = (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) != 0;
-
-        route("IR", data);
         route("IR", data);
         IrReceiver.resume();
     }
@@ -418,141 +323,112 @@ void setupWiFi() {
 }
 // ANCHOR Webserver begins
 void setupWebServer(){
-    server.addHandler(&ws);
-    
-    
+    server.addHandler(&ws);    
+  
       // HTTP-POST-Endpunkt hinzufügen
     server.on("/sendCommand", HTTP_POST, handleServerCommand);
+        
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send_P(200, "text/html", htmlPage);  // send_P für PROGMEM
+    });
     
-    // Web Server Setup
-    //server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    //    request->send(200, "text/html", getHTML());
-    //});
+/*       // Endpunkt zum Lesen der Daten
+    server.on("/data", HTTP_GET, [](AsyncWebServerRequest *request) {
+    loadDataFromFlash();  // Daten laden
+    request->send(200, "text/plain", "Data loaded successfully");
+    }); */
+ 
+
+  // Endpunkt zum Speichern der Daten
+/*     server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request) {
+        saveDataToFlash();
+        request->send(200, "text/plain", "Data saved successfully");
+    }); */
+
     server.begin();
 }
-
+// ANCHOR Bluetooth beginns
 void handleServerCommand(AsyncWebServerRequest *request) {
-    if (request->hasParam("function", true)) {
-        String functionStr = request->getParam("function", true)->value();
-        // curl -X POST -d "function=IR&protocol=NEC&address=0x4&code=0x8&repeat=false" http://192.168.10.167/sendCommand
-        if (functionStr == "IR") {
-            if (request->hasParam("protocol", true) && request->hasParam("address", true) && 
-                request->hasParam("code", true) && request->hasParam("repeat", true)) {
+    if (!request->hasParam("function", true)) {
+        request->send(400, "text/plain", "Missing 'function' parameter");
+        return;
+    }
 
-                String protocolStr = request->getParam("protocol", true)->value();
-                String addrStr = request->getParam("address", true)->value();
-                String codeStr = request->getParam("code", true)->value();
-                String repeatStr = request->getParam("repeat", true)->value();
+    String functionStr = request->getParam("function", true)->value();
 
-                char* endPtr;
-
-                uint32_t address = strtoul(addrStr.c_str(), &endPtr, 16);
-                if (*endPtr != '\0') {
-                    request->send(400, "text/plain", "Invalid address format");
-                    return;
-                }
-
-                uint8_t code = static_cast<uint8_t>(strtoul(codeStr.c_str(), &endPtr, 16));
-                if (*endPtr != '\0') {
-                    request->send(400, "text/plain", "Invalid code format");
-                    return;
-                }
-
-                bool repeatBool = (repeatStr == "true");
-                sendIR(address, code, repeatBool, protocolStr);
-                
-                // Send a success response
-                request->send(200, "text/plain", "IR command processed successfully");
-            } else {
-                request->send(400, "text/plain", "Missing required parameters for IR function");
-                return;
-            }
-
-        } else if (functionStr == "BLE") {
-            if (request->hasParam("modifier", true) && request->hasParam("code", true)) {
-
-                String modifierStr = request->getParam("modifier", true)->value();
-                String codeStr = request->getParam("code", true)->value();
-
-                char* endPtr;   
-                uint8_t modifier = static_cast<uint8_t>(strtoul(modifierStr.c_str(), &endPtr, 16));
-                if (*endPtr != '\0') {
-                    request->send(400, "text/plain", "Invalid modifier format");
-                    return;
-                }
-
-                sendBle(modifier, codeStr, false);
-                //dataProcessor("BLE", "NULL", modifierStr, codeStr, repeatStr);
-
-                // Send a success response
-                request->send(200, "text/plain", "BLE command processed successfully");
-                Serial.print(modifier); + Serial.print(" - "); + Serial.println(codeStr);
-            } else {
-                request->send(400, "text/plain", "Missing required parameters for BLE function");
-                return;
-            }
-
-        } else {
-            request->send(400, "text/plain", "Invalid function parameter");
+    if (functionStr == "IR") {
+        if (!(request->hasParam("protocol", true) &&
+              request->hasParam("address", true) &&
+              request->hasParam("code", true) &&
+              request->hasParam("repeat", true))) {
+            request->send(400, "text/plain", "Missing required parameters for IR function");
             return;
         }
+
+        String protocolStr = request->getParam("protocol", true)->value();
+        String addrStr = request->getParam("address", true)->value();
+        String codeStr = request->getParam("code", true)->value();
+        String repeatStr = request->getParam("repeat", true)->value();
+
+        char* endPtr;
+        uint32_t address = strtoul(addrStr.c_str(), &endPtr, 16);
+        if (*endPtr != '\0') {
+            request->send(400, "text/plain", "Invalid address format");
+            return;
+        }
+
+        uint8_t code = static_cast<uint8_t>(strtoul(codeStr.c_str(), &endPtr, 16));
+        if (*endPtr != '\0') {
+            request->send(400, "text/plain", "Invalid code format");
+            return;
+        }
+
+        bool repeatBool = (repeatStr == "true");
+
+        sendIR(address, code, repeatBool, protocolStr);
+        request->send(200, "text/plain", "IR command processed successfully");
+
+    } else if (functionStr == "BLE") {
+        // Ähnliche Struktur für BLE
     } else {
-        request->send(400, "text/plain", "Missing function parameter");
+        request->send(400, "text/plain", "Unknown function");
     }
 }
-// ANCHOR Bluetooth beginns
 
 // Funktion zum Senden eines BLE-Reports
-void sendBle(uint8_t modifier, const String& keyString, bool repeat) {  
-    if (bleKeyboard.isConnected()) {  
-        // Modifier anwenden, falls vorhanden  
-        if (modifier != 0) {  
-            bleKeyboard.press(modifier);  
-        }  
-  
-        // KeyString senden  
-        bleKeyboard.print(keyString);  
-  
-        // Modifier loslassen, falls angewendet  
-        if (modifier != 0) {  
-            bleKeyboard.release(modifier);  
-        }  
-  
-        // Debug-Ausgabe  
-        Serial.print("Sending BLE Report: Modifier: ");  
-        Serial.print(modifier, HEX);  
-        Serial.print(" KeyString: ");  
-        Serial.println(keyString);  
-    } else {  
-        Serial.println("BLE not connected, discarding key input.");  
-    }  
-} 
+void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat) {
+    if (bleKeyboard.isConnected()) {
 
-void sendBle(uint8_t modifier, const String& keyString) {  
-    if (bleKeyboard.isConnected()) {  
-        // Modifier anwenden, falls vorhanden  
-        if (modifier != 0) {  
-            bleKeyboard.press(modifier);  
-        }  
-  
-        // KeyString senden  
-        bleKeyboard.print(keyString);  
-  
-        // Modifier loslassen, falls angewendet  
-        if (modifier != 0) {  
-            bleKeyboard.release(modifier);  
-        }  
-  
-        // Debug-Ausgabe  
-        Serial.print("Sending BLE Report: Modifier: ");  
-        Serial.print(modifier, HEX);  
-        Serial.print(" KeyString: ");  
-        Serial.println(keyString);  
-    } else {  
-        Serial.println("BLE not connected, discarding key input.");  
-    }  
-} 
+        // Modifier anwenden, falls vorhanden
+        if (modifier != 0) {
+            bleKeyboard.press(modifier);
+        }
 
+        // Keycode drücken
+        bleKeyboard.press(keycode);
+
+        // Wenn isRepeat wahr ist, halte die Taste für xyz Millisekunden
+        if (isRepeat) {
+            delay(longKey);
+        }else {
+            delay(100);
+        }
+
+        // Keycode loslassen
+        bleKeyboard.release(keycode);
+
+        // Modifier loslassen, falls angewendet
+        if (modifier != 0) {
+            bleKeyboard.release(modifier);
+        }
+
+        // Debug-Ausgabe
+        Serial.print("Sending BLE Report: Modifier: "); +  Serial.print(modifier, HEX); +  Serial.print(" Keycode: "); + Serial.println(keycode);
+    } else {
+        Serial.println("BLE not connected, discarding key input.");
+        ws.textAll("BLE not connected, discarding key input");
+    }
+}
 
 
 
@@ -563,9 +439,8 @@ void setup() {
     setupWiFi();
     setupWebServer();  // Webserver initialisieren
     setupIRRecv();
-    bleKeyboard.begin();
     bleKeyboard.begin();  // BLE Keyboard initialisieren
-
+      // Speicher testen, indem statische JSON-Daten gespeichert werden
 }
 
 void loop() {
