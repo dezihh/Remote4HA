@@ -16,18 +16,15 @@ sock = Sock(app)  # Initialize Sock instead of SocketIO
 
 @app.route('/save', methods=['POST'])
 def save():
-    # Die Formulardaten (URL-kodiert) empfangen
-    data = request.form.get('data')
+    # Die Rohdaten (Text) empfangen
+    raw_data = request.data.decode('utf-8')
 
-    if data:
-        print(f"Daten empfangen: {data}")
+    if raw_data:
+        print(f"Daten empfangen: {raw_data}")
         # Hier könntest du die Daten weiter verarbeiten oder speichern
-        return f"Daten erfolgreich gespeichert: {data}", 200
+        return f"Daten erfolgreich gespeichert: {raw_data}", 200
     else:
         return "Fehler: Keine Daten empfangen.", 400
-
-#if __name__ == '__main__':
-#    app.run(debug=True)
 
 # WebSocket-Events
 active_websocket = None
@@ -89,7 +86,13 @@ def data():
     data = request.json
     return jsonify({"status": "success", "received": data}), 200
 
-# Daten vom ESP laden
+# curl -X POST -d "data=IR,NEC,0x1,0x9999,0,0x0,0,1,sendHttpToAPI,,0,0,0,0,0;IR,NEC,0x2,0x8888,0,0x0,0,1,sendIR,,0,0,0,0,0" http://192.168.10.167/save
+#curl -X POST -H "Content-Type: text/plain" --data-binary @- http://127.0.0.1:5000/save <<EOF
+#IR,1,0x12,0x0001,2,0,0,0,sendHttpToAPI,0,0,0,0,0,0,0
+#IR,8,0x6,0x0002,0,0,0,0,sendIR,2,0x1,0x0002,1,0,0,1
+#sendApiToTrue,true
+#EOF
+@app.route('/loadData', methods=['GET'])
 def load_data():
     # CSV-Daten, wie sie vorher waren
     mock_data = """
