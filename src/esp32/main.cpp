@@ -7,7 +7,7 @@
 #include <BleKeyboard.h> 
 #include <ArduinoJson.h>
 #include <Preferences.h>  // Für das Speichern und Laden von Daten
-#include <LittleFS.h>
+#include <nvs_flash.h>
 
 
 //#include <HIDTypes.h>
@@ -18,6 +18,7 @@
 #ifdef USE_USB 
     #include "EspUsbHost.h"
 #endif
+#define  MAX_ROUTES 100
 #include "reportMap.h"
 #include <IRremote.hpp>
 #include <HTTPClient.h> 
@@ -27,14 +28,19 @@ bool usb_connected = false;
 unsigned long keyPressStartTime = 0;
 bool keyPressed = false;
 int longKey = 500;
+bool defaultToAPI = false;
 
 // BLE HID service variables
 BleKeyboard bleKeyboard("ESP32 BLE Keyboard", "ESP32 BLE Keyboard", 100);
 bool is_ble_connected = false;
+
 void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat);
 void sendIR(uint32_t address, uint8_t command, bool repeats, const String& protocol);
-void handleServerCommand(AsyncWebServerRequest *request);
 void sendHttpToAPI(String provider, String data);
+void handleSendBle(AsyncWebServerRequest *request) ;
+void handleServerCommand(AsyncWebServerRequest *request);
+void handleSaveRequest(AsyncWebServerRequest *request);
+void handleLoadRequest(AsyncWebServerRequest *request);
 
 // IR: Pin Definitionen
 const int RECV_PIN = 15;  // (15)(2) IR Empfänger Pin
@@ -64,7 +70,7 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
 // Routingstruktur mit Zielwerten für Protokoll, Adresse, Command und Modifier
-const size_t MAX_ROWS = 100;
+
 struct Route {
     String source;               // IR, IF
     decode_type_t protocol;      // IR Prot
@@ -86,7 +92,9 @@ struct Route {
 };
 
 
-Route routeTable[MAX_ROWS];
+Route routeTable[MAX_ROUTES];
+int routeCount = 0;  
+
 // Statische Routingtabelle
 /* Route routeTable[MAX_ROWS] = {
     //{"src", IRprot, IRCod, IRAdr, IRRep, USmod, USkey, USLng, action, nullptr, nullptr, UNKNOWN, 0xd, 0x0000, 0, KEY_LEFT_SHIFT, "A", 0},
@@ -102,9 +110,55 @@ bool sendToApi = false; // Boolescher Wert für die Radiobox
 // API: String source, String data
 //  IR: uint32_t address, uint8_t command, bool repeats, const String& protocol
 
+/////////////////
+void saveRoutesToNVS() {
+    Preferences preferences;
+    if (!preferences.begin("routeData", false)) {
+        Serial.println("Failed to initialize NVS for writing");
+        return;
+    }
+
+    preferences.putInt("routeCount", routeCount);
+    for (int i = 0; i < routeCount; i++) {
+        String key = "route" + String(i);
+        preferences.putBytes(key.c_str(), &routeTable[i], sizeof(Route));
+    }
+
+    preferences.end();
+    Serial.println("Routes saved to NVS.");
+}
+
+// Function to load routes from NVS
+void loadRoutesFromNVS() {
+    Preferences preferences;
+    if (!preferences.begin("routeData", true)) {
+        Serial.println("Failed to initialize NVS for reading");
+        return;
+    }
+
+    routeCount = preferences.getInt("routeCount", 0);
+    if (routeCount > MAX_ROUTES) {
+        Serial.println("Route count exceeds maximum capacity");
+        preferences.end();
+        return;
+    }
+
+    for (int i = 0; i < routeCount; i++) {
+        String key = "route" + String(i);
+        if (preferences.getBytesLength(key.c_str()) == sizeof(Route)) {
+            preferences.getBytes(key.c_str(), &routeTable[i], sizeof(Route));
+        } else {
+            Serial.println("Route data size mismatch for key: " + key);
+        }
+    }
+
+    preferences.end();
+    Serial.println("Routes loaded from NVS.");
+}
 
 
-const int routeCount = sizeof(routeTable) / sizeof(routeTable[0]);  
+
+//const int routeCount = sizeof(routeTable) / sizeof(routeTable[0]);  
 
 void route(String source, IRrcv irData) {
     for (int i = 0; i < sizeof(routeTable) / sizeof(Route); i++) {
@@ -115,7 +169,6 @@ void route(String source, IRrcv irData) {
             irData.protocol == route.protocol &&
             irData.code == route.code &&
             irData.address == route.address) {
-            
             // Prüfbedingung für Repeat
             bool repeatCondition = (route.isRepeat == 2) || 
                                    (route.isRepeat == 1 && irData.isRepeat) || 
@@ -198,6 +251,31 @@ void route(String source, USBRecv usbData) {
     sendHttpToAPI(source, data);
 }
 
+
+void handleGetdefaultRouteFields(AsyncWebServerRequest *request) {
+  String response = defaultToAPI ? "true" : "false";
+  request->send(200, "text/plain", response);
+  Serial.println("In handleGetdefaultRoute");
+}
+
+// POST-Endpunkt: Setzt den neuen Zustand
+void handlePostdefaultRouteFields(AsyncWebServerRequest *request) {
+    Serial.println("In PostdefaultRoute");
+  if (request->hasParam("value", true)) { // Prüfen, ob der POST-Parameter existiert
+    String value = request->getParam("value", true)->value();
+    if (value == "true") {
+      defaultToAPI = true;
+      request->send(200, "text/plain", "OK");
+    } else if (value == "false") {
+      defaultToAPI = false;
+      request->send(200, "text/plain", "OK");
+    } else {
+      request->send(400, "text/plain", "Invalid value");
+    }
+  } else {
+    request->send(400, "text/plain", "Missing 'value' parameter");
+  }
+}
 
 // Funktion zum Senden einer HTTP-Anfrage an die API
 //void sendHttpToAPI(String provider, String address, String code) {
@@ -292,6 +370,25 @@ void sendIR(uint32_t address, uint8_t command, bool repeats, const String& proto
     IrReceiver.start();
     delay(60); // Wartezeit nach dem Senden
 }
+
+// Endpunkt für IR
+void handleSendIr(AsyncWebServerRequest *request) {
+  if (request->hasParam("address", true) &&
+      request->hasParam("command", true) &&
+      request->hasParam("protocol", true) &&
+      request->hasParam("repeats", true)) {
+    uint32_t address = strtoul(request->getParam("address", true)->value().c_str(), nullptr, 16);
+    uint8_t command = strtoul(request->getParam("command", true)->value().c_str(), nullptr, 16);
+    bool repeats = request->getParam("repeats", true)->value() == "true";
+    String protocol = request->getParam("protocol", true)->value();
+
+    sendIR(address, command, repeats, protocol);
+    request->send(200, "text/plain", "IR Command Sent");
+  } else {
+    request->send(400, "text/plain", "Missing parameters");
+  }
+}
+
 // Beispielhafte Datenverarbeitung für IR-Daten
 void readIR() {
     if (IrReceiver.decode()) {
@@ -305,6 +402,48 @@ void readIR() {
     }
 }
 // ANCHOR WiFi beginns
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
+    AwsFrameInfo *info = (AwsFrameInfo*)arg;
+    Serial.println("In handleWebSocketMessage");
+    if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+        String message = String((char*)data);
+        Serial.println("In der Nachricht WebSocket");
+        // Aufteilen der Nachricht in ihre Bestandteile
+        int firstComma = message.indexOf(',');
+        int secondComma = message.indexOf(',', firstComma + 1);
+        
+        if(firstComma > 0 && secondComma > 0) {
+            decode_type_t protocol = (decode_type_t)message.substring(0, firstComma).toInt();
+            uint16_t address = strtoul(message.substring(firstComma + 1, secondComma).c_str(), NULL, 16);
+            uint8_t command = strtoul(message.substring(secondComma + 1).c_str(), NULL, 16);
+            
+            // IR-Signal senden
+        //    sendIR(address, command, 0, protocol);
+            
+            // Bestätigung über WebSocket senden
+            //String confirmMsg = "IR-Signal gesendet - Adresse: 0x" + String(address, HEX) + 
+            //                  ", Command: 0x" + String(command, HEX);
+            //ws.textAll(confirmMsg);
+        }
+    }
+}
+void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
+             void *arg, uint8_t *data, size_t len) {
+    switch (type) {
+        case WS_EVT_CONNECT:
+            Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+            break;
+        case WS_EVT_DISCONNECT:
+            Serial.printf("WebSocket client #%u disconnected\n", client->id());
+            break;
+        case WS_EVT_DATA:
+            handleWebSocketMessage(arg, data, len);
+            break;
+        case WS_EVT_PONG:
+        case WS_EVT_ERROR:
+            break;
+    }
+}
 void setupWiFi() {
     WiFiManager wm;
     if (!wm.autoConnect("ESP32_AutoConnect")) {
@@ -331,7 +470,23 @@ void setupWebServer(){
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send_P(200, "text/html", htmlPage);  // send_P für PROGMEM
     });
-    
+
+    /////////
+ // Routen definieren
+  server.on("/sendBLE", HTTP_POST, [](AsyncWebServerRequest *request) { handleSendBle(request); });
+  server.on("/sendIR", HTTP_POST, [](AsyncWebServerRequest *request) { handleSendIr(request); });
+    server.on("/defaultRouteFields", HTTP_GET, handleGetdefaultRouteFields);
+  server.on("/defaultRouteFields", HTTP_POST, handlePostdefaultRouteFields);
+//server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request) {
+server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request) { handleSaveRequest(request); });
+server.on("/loadData", HTTP_POST, [](AsyncWebServerRequest *request) { handleLoadRequest(request); });
+
+
+
+//server.on("/loadData", HTTP_GET, [](AsyncWebServerRequest *request) {
+
+
+
 /*       // Endpunkt zum Lesen der Daten
     server.on("/data", HTTP_GET, [](AsyncWebServerRequest *request) {
     loadDataFromFlash();  // Daten laden
@@ -346,6 +501,8 @@ void setupWebServer(){
     }); */
 
     server.begin();
+    ws.onEvent(onEvent);
+
 }
 // ANCHOR Bluetooth beginns
 void handleServerCommand(AsyncWebServerRequest *request) {
@@ -393,6 +550,22 @@ void handleServerCommand(AsyncWebServerRequest *request) {
     } else {
         request->send(400, "text/plain", "Unknown function");
     }
+} 
+
+// Endpunkt für BLE
+void handleSendBle(AsyncWebServerRequest *request) {
+  if (request->hasParam("modifier", true) &&
+      request->hasParam("keycode", true) &&
+      request->hasParam("isRepeat", true)) {
+    uint8_t modifier = strtoul(request->getParam("modifier", true)->value().c_str(), nullptr, 16);
+    uint8_t keycode = strtoul(request->getParam("keycode", true)->value().c_str(), nullptr, 16);
+    bool isRepeat = request->getParam("isRepeat", true)->value() == "true";
+
+    sendBle(modifier, keycode, isRepeat);
+    request->send(200, "text/plain", "BLE Command Sent");
+  } else {
+    request->send(400, "text/plain", "Missing parameters");
+  }
 }
 
 // Funktion zum Senden eines BLE-Reports
@@ -429,8 +602,150 @@ void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat) {
         ws.textAll("BLE not connected, discarding key input");
     }
 }
+//ANCHOR Save Routedata
+void handleSaveRequest(AsyncWebServerRequest *request) {
+    if (!request->hasParam("data", true)) {
+        request->send(400, "text/plain", "No data provided");
+        return;
+    }
 
+    // Retrieve the data
+    String rawData = request->getParam("data", true)->value();
+    Serial.println("Received data:");
+    Serial.println(rawData);
 
+    // Reset route count before processing new data
+    routeCount = 0;
+    int startIndex = 0;
+    int endIndex = rawData.indexOf("\n");
+
+    // Process each line of input
+    while (endIndex != -1 && routeCount < MAX_ROUTES) {
+        String row = rawData.substring(startIndex, endIndex);
+
+        // Temporary buffers for parsing
+        char sourceBuffer[16];
+        char actionBuffer[32];
+
+        // Parse the current row
+        sscanf(row.c_str(), "%15[^,],%hhu,%hhu,%u,%d,%hhu,%hhu,%d,%31[^,],%hhu,%hhu,%u,%d,%hhu,%hhu,%d",
+               sourceBuffer,
+               &routeTable[routeCount].protocol,
+               &routeTable[routeCount].code,
+               &routeTable[routeCount].address,
+               &routeTable[routeCount].isRepeat,
+               &routeTable[routeCount].modifier,
+               &routeTable[routeCount].command,
+               &routeTable[routeCount].keyLong,
+               actionBuffer,
+               &routeTable[routeCount].oIRprot,
+               &routeTable[routeCount].oIRcode,
+               &routeTable[routeCount].oIRaddress,
+               &routeTable[routeCount].oIRisRepeat,
+               &routeTable[routeCount].oBleMod,
+               &routeTable[routeCount].oBleCode,
+               &routeTable[routeCount].oRBleRepeat);
+
+        // Assign parsed values to String fields
+        routeTable[routeCount].source = String(sourceBuffer);
+        routeTable[routeCount].actionFuncName = String(actionBuffer);
+
+        // Debug output for each parsed route
+        Serial.printf("Route %d: %s Protocol: %d Code: %d Action: %s\n",
+                      routeCount,
+                      routeTable[routeCount].source.c_str(),
+                      routeTable[routeCount].protocol,
+                      routeTable[routeCount].code,
+                      routeTable[routeCount].actionFuncName.c_str());
+
+        routeCount++;
+        startIndex = endIndex + 1;
+        endIndex = rawData.indexOf("\n", startIndex);
+    }
+
+    // Handle the last line if it does not end with \n
+    if (routeCount < MAX_ROUTES && startIndex < rawData.length()) {
+        String row = rawData.substring(startIndex);
+
+        // Temporary buffers for parsing
+        char sourceBuffer[16];
+        char actionBuffer[32];
+
+        // Parse the last row
+        sscanf(row.c_str(), "%15[^,],%hhu,%hhu,%u,%d,%hhu,%hhu,%d,%31[^,],%hhu,%hhu,%u,%d,%hhu,%hhu,%d",
+               sourceBuffer,
+               &routeTable[routeCount].protocol,
+               &routeTable[routeCount].code,
+               &routeTable[routeCount].address,
+               &routeTable[routeCount].isRepeat,
+               &routeTable[routeCount].modifier,
+               &routeTable[routeCount].command,
+               &routeTable[routeCount].keyLong,
+               actionBuffer,
+               &routeTable[routeCount].oIRprot,
+               &routeTable[routeCount].oIRcode,
+               &routeTable[routeCount].oIRaddress,
+               &routeTable[routeCount].oIRisRepeat,
+               &routeTable[routeCount].oBleMod,
+               &routeTable[routeCount].oBleCode,
+               &routeTable[routeCount].oRBleRepeat);
+
+        // Assign parsed values to String fields
+        routeTable[routeCount].source = String(sourceBuffer);
+        routeTable[routeCount].actionFuncName = String(actionBuffer);
+
+        // Debug output for the last parsed route
+        Serial.printf("Route %d: %s Protocol: %d Code: %d Action: %s\n",
+                      routeCount,
+                      routeTable[routeCount].source.c_str(),
+                      routeTable[routeCount].protocol,
+                      routeTable[routeCount].code,
+                      routeTable[routeCount].actionFuncName.c_str());
+
+        routeCount++;
+    }
+
+    // Save all parsed routes to NVS
+    saveRoutesToNVS();
+
+    // Send success response
+    request->send(200, "text/plain", "Routes saved successfully");
+}
+
+    
+//ANCHOR Save Routedata
+void handleLoadRequest(AsyncWebServerRequest *request) {
+    loadRoutesFromNVS();  // Load saved data from NVS
+    String responseData;
+    for (int i = 0; i < routeCount; i++) {
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer),
+                 "%s,%u,%u,%u,%d,%u,%u,%d,%s,%u,%u,%u,%d,%u,%u,%d\n",
+                 routeTable[i].source,
+                 routeTable[i].protocol,
+                 routeTable[i].code,
+                 routeTable[i].address,
+                 routeTable[i].isRepeat,
+                 routeTable[i].modifier,
+                 routeTable[i].command,
+                 routeTable[i].keyLong,
+                 routeTable[i].actionFuncName,
+                 routeTable[i].oIRprot,
+                 routeTable[i].oIRcode,
+                 routeTable[i].oIRaddress,
+                 routeTable[i].oIRisRepeat,
+                 routeTable[i].oBleMod,
+                 routeTable[i].oBleCode,
+                 routeTable[i].oRBleRepeat);
+        responseData += buffer;
+    }
+
+    if (responseData.isEmpty()) {
+        responseData = "No data available.\n";
+    }
+
+    request->send(200, "text/plain", responseData);
+}
 
 void setup() {
     Serial.begin(115200);
@@ -440,7 +755,11 @@ void setup() {
     setupWebServer();  // Webserver initialisieren
     setupIRRecv();
     bleKeyboard.begin();  // BLE Keyboard initialisieren
-      // Speicher testen, indem statische JSON-Daten gespeichert werden
+        if (nvs_flash_init() != ESP_OK) {
+        Serial.println("NVS Flash Init failed");
+        return;
+    }
+     loadRoutesFromNVS();
 }
 
 void loop() {
