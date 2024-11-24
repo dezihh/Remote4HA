@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from flask import Flask, jsonify, request, render_template
 jsonify, request, render_template
 
@@ -58,10 +59,10 @@ def websocket(ws):
     try:
         # Set the active WebSocket
         active_websocket = ws
-        
+
         # Initial connection message
         ws.send('Connection established')
-        
+
         # Keep the connection open and listen for messages
         while True:
             data = ws.receive()
@@ -88,47 +89,89 @@ def data():
     data = request.json
     return jsonify({"status": "success", "received": data}), 200
 
-#@app.route('/loadData', methods=['GET'])
-#def load_data():
-#    return jsonify({"status": "success", "message": "Mock data loaded"}), 200
-@app.route('/loadData', methods=['GET'])
+# Daten vom ESP laden
 def load_data():
     # CSV-Daten, wie sie vorher waren
     mock_data = """
-    IR,1,0x12,0x0000,2,0,0,0,sendHttpToAPI,0,0,0,0,0,0,0
-    IR,8,0x6,0x0000,2,0,0,0,sendHttpToAPI,0,0,0,0,0,0,0
+    IR,1,0x12,0x0001,2,0,0,0,sendHttpToAPI,0,0,0,0,0,0,0
+    IR,8,0x6,0x0002,0,0,0,0,sendIR,2,0x1,0x0002,1,0,0,1
+    USB,8,0x6,0x0003,0,0x3,0x4,2,sendIR,2,0x1,0x0002,1,0,0,1
     """
-    
+
     # Der SendToApi-Status (True oder False)
     send_to_api_value = True  # Zum Beispiel, True für aktiviert, False für deaktiviert
-    
+
     # Wir fügen den Status als zusätzliche Zeile in der CSV hinzu
     send_to_api_row = f"sendToApi,{send_to_api_value}"
 
     # Gesamte Antwort: CSV-Daten und der Status als zusätzliche Zeile
     response_data = mock_data + "\n" + send_to_api_row
-    
+    #response_data = mock_data + "\n"
+
     return response_data, 200, {'Content-Type': 'text/plain'}
 
 
-@app.route('/sendBLE', methods=['POST'])
+#curl "http://127.0.0.1:5000/sendBLE?modifier=Ctrl&keycode=A1&repeats=true"
+@app.route('/sendBLE', methods=['GET'])
 def send_ble():
-    data = request.json
-    return jsonify({"status": "success", "message": "BLE data received", "received": data}), 200
+    # URL-Parameter auslesen
+    modifier = request.args.get('modifier')
+    keycode = request.args.get('keycode')
+    repeats = request.args.get('repeats')
 
-@app.route('/sendIR', methods=['POST'])
+    # Überprüfen, ob alle Parameter vorhanden sind
+    if not all([modifier, keycode, repeats]):
+        return jsonify({"status": "error", "message": "Missing parameters"}), 400
+
+    # Boolean-Wert für 'repeats' konvertieren
+    repeats_bool = repeats.lower() == 'true'
+
+    # Mock-Antwort zurückgeben
+    response = {
+        "status": "success",
+        "message": "BLE data received",
+        "received": {
+            "modifier": modifier,
+            "keycode": keycode,
+            "repeats": repeats_bool
+        }
+    }
+    return jsonify(response), 200
+
+#curl "http://127.0.0.1:5000/sendIR?protocol=NEC&address=1A2B&command=4D&repeats=true"
+@app.route('/sendIR', methods=['GET'])
 def send_ir():
-    data = request.json
-    return jsonify({"status": "success", "message": "IR data received", "received": data}), 200
+    # URL-Parameter auslesen
+    protocol = request.args.get('protocol')
+    address = request.args.get('address')
+    command = request.args.get('command')
+    repeats = request.args.get('repeats')
+
+    # Überprüfen, ob alle Parameter vorhanden sind
+    if not all([protocol, address, command, repeats]):
+        return jsonify({"status": "error", "message": "Missing parameters"}), 400
+
+    # Boolean-Wert für 'repeats' konvertieren
+    repeats_bool = repeats.lower() == 'true'
+
+    # Mock-Antwort zurückgeben
+    response = {
+        "status": "success",
+        "message": "IR data received",
+        "received": {
+            "protocol": protocol,
+            "address": address,
+            "command": command,
+            "repeats": repeats_bool
+        }
+    }
+    return jsonify(response), 200
 
 # Webseite bereitstellen
 @app.route('/')
 def index():
     # Render die index.html im templates-Ordner
     return render_template('index.html')
-
-#if __name__ == '__main__':
-#    app.run(host='0.0.0.0', port=5000, debug=True)
 
 if __name__ == '__main__':
  app.run(host='0.0.0.0', port=5000, debug=True)
