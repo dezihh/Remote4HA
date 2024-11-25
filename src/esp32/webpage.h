@@ -297,7 +297,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 		const MAYBE = [ { value: "0", text: "False" }, { value: "1", text: "True" }, { value: "2", text: "Beides" } ];
 
 				// WebSocket-Setup
-        var gateway = `ws://${window.location.hostname}:5000/ws`;
+        var gateway = `ws://${window.location.hostname}/ws`;
         var websocket;
         function initWebSocket() {
             websocket = new WebSocket(gateway);
