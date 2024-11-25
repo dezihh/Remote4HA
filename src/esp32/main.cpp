@@ -381,7 +381,11 @@ void handleSendIr(AsyncWebServerRequest *request) {
     uint8_t command = strtoul(request->getParam("command", true)->value().c_str(), nullptr, 16);
     bool repeats = request->getParam("repeats", true)->value() == "true";
     String protocol = request->getParam("protocol", true)->value();
-
+    String sendInfo = "Sent IR Command Protocol: " + protocol + 
+                  " Address: " + String(address) + 
+                  " Command: " + String(command) + 
+                  " Repeats: " + String(repeats);
+    ws.textAll(sendInfo); 
     sendIR(address, command, repeats, protocol);
     request->send(200, "text/plain", "IR Command Sent");
   } else {
