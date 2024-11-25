@@ -1,3 +1,4 @@
+
 #ifndef WEBPAGE_H
 #define WEBPAGE_H
 
@@ -611,27 +612,29 @@ function saveData() {
     const params = new URLSearchParams({
         modifier: modifier,
         keycode: keycode,
-        repeats: repeat === 'true' ? 'true' : 'false' // Boolean in String umwandeln
+        isRepeat: repeat === 'true' ? 'true' : 'false' // Boolean in String umwandeln
     });
-
-    // Fetch-Aufruf mit URL-Parametern
-    fetch(`/sendBLE?${params.toString()}`, {
-        method: 'GET' // Methode GET, da URL-Parameter verwendet werden
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('HTTP error! status: ' + response.status);
-        }
-        return response.text(); // Text-Antwort lesen
-    })
-    .then(result => {
-        console.log('BLE Data Sent:', result);
-
-    })
-    .catch(error => {
-        console.error('Error sending BLE data:', error);
-        alert('Fehler beim Senden der BLE-Daten.');
-    });
+	// Fetch-Aufruf mit URL-Parametern
+	fetch('/sendBLE', {
+		method: 'POST', // Methode muss POST sein
+		headers: {
+			'Content-Type': 'application/x-www-form-urlencoded'
+		},
+		body: params.toString() // URL-kodierte Formulardaten
+	})
+	.then(response => {
+		if (!response.ok) {
+			throw new Error('HTTP error! status: ' + response.status);
+		}
+		return response.text(); // Text-Antwort des ESP lesen
+	})
+	.then(result => {
+		console.log('BLE Data Sent:', result);
+	})
+	.catch(error => {
+		console.error('Error sending BLE data:', error);
+		alert('Fehler beim Senden des BLE-Befehls.');
+	});
 }
 		
     // Funktion: Log-Nachricht hinzufügen

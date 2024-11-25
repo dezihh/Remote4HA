@@ -35,7 +35,7 @@ BleKeyboard bleKeyboard("ESP32 BLE Keyboard", "ESP32 BLE Keyboard", 100);
 bool is_ble_connected = false;
 
 void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat);
-void sendIR(uint32_t address, uint8_t command, bool repeats, const String& protocol);
+void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol);
 void sendHttpToAPI(String provider, String data);
 void handleSendBle(AsyncWebServerRequest *request) ;
 void handleServerCommand(AsyncWebServerRequest *request);
@@ -181,7 +181,7 @@ void route(String source, IRrcv irData) {
                     // ANCHOR WS Log
                     ws.textAll("IR command send");
                     Serial.println("sendIR: Matched, Resend IR Data");
-                    sendIR(route.oIRaddress, route.oIRcode, finalRepeat, String(route.oIRprot));
+                    sendIR(route.oIRaddress, route.oIRcode, finalRepeat, route.oIRprot);
                 } else if (route.actionFuncName == "sendBLE") {
                     bool finalRepeat = (route.isRepeat == 2) ? irData.isRepeat : route.oRBleRepeat;
                     Serial.println("sendIR: Matched, Sent BLE Data");
@@ -226,7 +226,7 @@ void route(String source, USBRecv usbData) {
                 if (route.actionFuncName == "sendIR") {
                     bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oIRisRepeat;
                     Serial.println("USB: Matched, Sent IR Data");
-                    sendIR(route.oIRaddress, route.oIRcode, finalRepeat, String(route.oIRprot));
+                    sendIR(route.oIRaddress, route.oIRcode, finalRepeat, route.oIRprot);
                 } else if (route.actionFuncName == "sendBLE") {
                     bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oRBleRepeat;
                     Serial.println("USB: Matched, Sent BLE Data");
@@ -345,31 +345,66 @@ void setupIRRecv(){
     IrReceiver.enableIRIn();  // Start the receiver
     //IrReceiver.blink13(true); // LED blinkt bei IR-Empfang
 }
-// Funktion zum Senden von IR-Daten
-void sendIR(uint32_t address, uint8_t command, bool repeats, const String& protocol) {
-    String protocolUpper = String(protocol); // Erstelle eine Kopie des Strings
-    protocolUpper.toUpperCase();
+void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol) {
+
+    String protocolUpper= getProtocolString(protocol);
+    std::transform(protocolUpper.begin(), protocolUpper.end(), protocolUpper.begin(), ::toupper);
+    
     IrReceiver.stop();
-    if (protocolUpper  == "KASEIKYO_DENON") {
-        IrSender.sendKaseikyo_Denon(address & 0xFFF, command, repeats);
+
+    uint32_t maskedAddress;
+
+    if (protocolUpper == "KASEIKYO_DENON") {
+        maskedAddress = address & 0xFFF;
+        IrSender.sendKaseikyo_Denon(maskedAddress, command, repeats);
     } else if (protocolUpper == "DENON") {
-        IrSender.sendDenon(address & 0xFF, command, repeats);
+        maskedAddress = address & 0xFF;
+        IrSender.sendDenon(maskedAddress, command, repeats);
     } else if (protocolUpper == "SONY") {
-        IrSender.sendSony(address & 0xFF, command, repeats);
+        maskedAddress = address & 0xFF;
+        IrSender.sendSony(maskedAddress, command, repeats);
     } else if (protocolUpper == "LG") {
-        IrSender.sendLG(address & 0xFF, command, repeats);
+        maskedAddress = address & 0xFF;
+        IrSender.sendLG(maskedAddress, command, repeats);
     } else if (protocolUpper == "NEC2") {
-        IrSender.sendNEC2(address & 0xFF, command, repeats);
+        maskedAddress = address & 0xFF;
+        IrSender.sendNEC2(maskedAddress, command, repeats);
     } else if (protocolUpper == "NEC") {
-        IrSender.sendNEC(address & 0xFF, command, repeats);
+        maskedAddress = address & 0xFF;
+        IrSender.sendNEC(maskedAddress, command, repeats);
+    } else if (protocolUpper == "PANASONIC") {
+        maskedAddress = address;
+        IrSender.sendPanasonic(maskedAddress, command, repeats);
+    } else if (protocolUpper == "SAMSUNG") {
+        maskedAddress = address & 0xFF;
+        IrSender.sendSamsung(maskedAddress, command, repeats);
+    } else if (protocolUpper == "WHYNTER") {
+        maskedAddress = address & 0xFF;
+        IrSender.sendWhynter(maskedAddress, command);
+    } else if (protocolUpper == "RC5") {
+        maskedAddress = address & 0xFF;
+        IrSender.sendRC5(maskedAddress, command, repeats);
+    } else if (protocolUpper == "RC6") {
+        maskedAddress = address & 0xFF;
+        IrSender.sendRC6(maskedAddress, command, repeats);
+    } else if (protocolUpper == "MAGIQUEST") {
+        maskedAddress = address & 0xFF;
+        IrSender.sendMagiQuest(maskedAddress, command);
     } else {
         Serial.print(F("Unknown IR protocol requested: "));
         Serial.println(protocolUpper);
     }
+
+    String sendInfo = "Sent IR Command Protocol: " + protocolUpper + "(" + String(protocol) + ")" +
+        " Address: 0x" + String(maskedAddress, HEX) + 
+        " Command: 0x" + String(command, HEX) + 
+        " Repeats: " + String(repeats ? "true" : "false");
+    ws.textAll(sendInfo.c_str()); 
+
     delay(40); // Wartezeit nach dem Senden
     IrReceiver.start();
     delay(60); // Wartezeit nach dem Senden
-}
+} 
 
 // Endpunkt für IR
 void handleSendIr(AsyncWebServerRequest *request) {
@@ -380,12 +415,7 @@ void handleSendIr(AsyncWebServerRequest *request) {
     uint32_t address = strtoul(request->getParam("address", true)->value().c_str(), nullptr, 16);
     uint8_t command = strtoul(request->getParam("command", true)->value().c_str(), nullptr, 16);
     bool repeats = request->getParam("repeats", true)->value() == "true";
-    String protocol = request->getParam("protocol", true)->value();
-    String sendInfo = "Sent IR Command Protocol: " + protocol + 
-                  " Address: " + String(address) + 
-                  " Command: " + String(command) + 
-                  " Repeats: " + String(repeats);
-    ws.textAll(sendInfo); 
+    decode_type_t protocol = static_cast<decode_type_t>(strtoul(request->getParam("protocol", true)->value().c_str(), nullptr, 16));
     sendIR(address, command, repeats, protocol);
     request->send(200, "text/plain", "IR Command Sent");
   } else {
@@ -393,7 +423,7 @@ void handleSendIr(AsyncWebServerRequest *request) {
   }
 }
 
-// Beispielhafte Datenverarbeitung für IR-Daten
+// Datenverarbeitung IR-Daten
 void readIR() {
     if (IrReceiver.decode()) {
         IRrcv data;
@@ -526,7 +556,7 @@ void handleServerCommand(AsyncWebServerRequest *request) {
             return;
         }
 
-        String protocolStr = request->getParam("protocol", true)->value();
+        decode_type_t protocol = static_cast<decode_type_t>(strtoul(request->getParam("protocol", true)->value().c_str(), nullptr, 16));
         String addrStr = request->getParam("address", true)->value();
         String codeStr = request->getParam("code", true)->value();
         String repeatStr = request->getParam("repeat", true)->value();
@@ -546,7 +576,7 @@ void handleServerCommand(AsyncWebServerRequest *request) {
 
         bool repeatBool = (repeatStr == "true");
 
-        sendIR(address, code, repeatBool, protocolStr);
+        sendIR(address, code, repeatBool, protocol);
         request->send(200, "text/plain", "IR command processed successfully");
 
     } else if (functionStr == "BLE") {
@@ -561,12 +591,12 @@ void handleSendBle(AsyncWebServerRequest *request) {
   if (request->hasParam("modifier", true) &&
       request->hasParam("keycode", true) &&
       request->hasParam("isRepeat", true)) {
-    uint8_t modifier = strtoul(request->getParam("modifier", true)->value().c_str(), nullptr, 16);
-    uint8_t keycode = strtoul(request->getParam("keycode", true)->value().c_str(), nullptr, 16);
-    bool isRepeat = request->getParam("isRepeat", true)->value() == "true";
-
-    sendBle(modifier, keycode, isRepeat);
-    request->send(200, "text/plain", "BLE Command Sent");
+        uint8_t modifier = strtoul(request->getParam("modifier", true)->value().c_str(), nullptr, 16);
+        uint8_t keycode = strtoul(request->getParam("keycode", true)->value().c_str(), nullptr, 16);
+        bool isRepeat = request->getParam("isRepeat", true)->value() == "true";
+        Serial.println();
+        sendBle(modifier, keycode, isRepeat);
+        request->send(200, "text/plain", "BLE Command Sent");
   } else {
     request->send(400, "text/plain", "Missing parameters");
   }
@@ -577,33 +607,30 @@ void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat) {
     if (bleKeyboard.isConnected()) {
 
         // Modifier anwenden, falls vorhanden
-        if (modifier != 0) {
-            bleKeyboard.press(modifier);
-        }
+        if (modifier != 0) { bleKeyboard.press(modifier); }
 
         // Keycode drücken
         bleKeyboard.press(keycode);
 
         // Wenn isRepeat wahr ist, halte die Taste für xyz Millisekunden
-        if (isRepeat) {
-            delay(longKey);
-        }else {
-            delay(100);
-        }
+        if (isRepeat) { delay(longKey); }
+        else { delay(100); }
 
         // Keycode loslassen
         bleKeyboard.release(keycode);
 
         // Modifier loslassen, falls angewendet
-        if (modifier != 0) {
-            bleKeyboard.release(modifier);
-        }
+        if (modifier != 0) {bleKeyboard.release(modifier); }
 
-        // Debug-Ausgabe
-        Serial.print("Sending BLE Report: Modifier: "); +  Serial.print(modifier, HEX); +  Serial.print(" Keycode: "); + Serial.println(keycode);
+        String sendInfo = "Sent BLE Keycode: 0x" + String(keycode, HEX) + 
+            " Modifier: 0x" + String(modifier, HEX) +
+            " Repeats: " + String(isRepeat ? "true" : "false");
+
+       // ws.textAll(sendInfo.c_str()); 
+        Serial.println(sendInfo);
     } else {
         Serial.println("BLE not connected, discarding key input.");
-        ws.textAll("BLE not connected, discarding key input");
+        //ws.textAll("BLE not connected, discarding key input");
     }
 }
 //ANCHOR Save Routedata
