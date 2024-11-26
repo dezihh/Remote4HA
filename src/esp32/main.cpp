@@ -30,6 +30,10 @@ int longKey = 500;
 bool defaultToAPI = false;
 
 // BLE HID service variables
+// BLE HID service variables
+BLEHIDDevice* hid;
+BLECharacteristic* input;
+BLECharacteristic* output;
 BleKeyboard bleKeyboard("ESP32 BLE Keyboard", "ESP32 BLE Keyboard", 100);
 bool is_ble_connected = false;
 
@@ -716,57 +720,51 @@ void handleSendBle(AsyncWebServerRequest *request)
 }
 
 // Funktion zum Senden eines BLE-Reports
-void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat)
-{
-    if (bleKeyboard.isConnected())
-    {
-
-        // Modifier anwenden, falls vorhanden
-        if (modifier != 0)
-        {
-            bleKeyboard.press(modifier);
-        }
-
-        // Keycode drücken
-        bleKeyboard.press(keycode);
-
-        // Wenn isRepeat wahr ist, halte die Taste für xyz Millisekunden
-        if (isRepeat)
-        {
-            delay(longKey);
-        }
-        else
-        {
-            delay(100);
-        }
-
-        // Keycode loslassen
-        bleKeyboard.release(keycode);
-
-        // Modifier loslassen, falls angewendet
-        if (modifier != 0)
-        {
-            bleKeyboard.release(modifier);
+void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat) {
+    if (bleKeyboard.isConnected()) {
+        if (isRepeat) {
+            if (modifier != 0) {
+                bleKeyboard.press(modifier);
+                bleKeyboard.press(keycode);
+                delay(longKey);
+                bleKeyboard.release(keycode);
+                bleKeyboard.release(modifier);
+            } else {
+                bleKeyboard.press(keycode );
+                delay(longKey);
+                bleKeyboard.release(keycode );
+            }
+        } else {
+            if (modifier != 0) {
+                bleKeyboard.press(modifier);
+                bleKeyboard.press(keycode );
+                delay(100);
+                bleKeyboard.release(keycode );
+                bleKeyboard.release(modifier);
+            } else {
+                bleKeyboard.releaseAll();
+                bleKeyboard.press('c' );
+                Serial.println("keycode c");
+                delay(100);
+                bleKeyboard.release(keycode );
+            }
         }
 
         String sendInfo = "Sent BLE Keycode: 0x" + String(keycode, HEX) +
                           " Modifier: 0x" + String(modifier, HEX) +
                           " Repeats: " + String(isRepeat ? "true" : "false");
 
-        ws.textAll(sendInfo.c_str());
         Serial.println(sendInfo);
     }
     else
     {
         Serial.println("BLE not connected, discarding key input.");
-        // ws.textAll("BLE not connected, discarding key input");
     }
 }
-// ANCHOR Save Routedata
-void handleSaveRequest(AsyncWebServerRequest *request)
-{
-    if (!request->hasParam("data", true))
-    {
+
+//ANCHOR Save Routedata
+void handleSaveRequest(AsyncWebServerRequest *request) {
+    if (!request->hasParam("data", true)) {
         request->send(400, "text/plain", "No data provided");
         return;
     }
