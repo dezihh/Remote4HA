@@ -243,7 +243,9 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 
         <!-- Felder für BLE -->
         <div id="bleFields" class="field-container" style="display: none;">
-            <input type="text" id="modifierInput" placeholder="Modifier (Hex)">
+            <select id="protocolInput">
+                <!-- Optionen werden dynamisch hinzugefügt -->
+            </select>
             <input type="text" id="keycodeInput" placeholder="Keycode (Hex)">
             <select id="repeatBLE">
                 <option value="true">True</option>
@@ -258,6 +260,76 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   <div id="logBox"></div>
 </body>
   <script>
+    // BLE Modifier
+    const VALID_KEYS = [
+            { value: "0x80", text: "KEY_LEFT_CTRL" },
+	    { value: "0x81", text: "KEY_LEFT_SHIFT" },
+	    { value: "0x82", text: "KEY_LEFT_ALT" },
+	    { value: "0x83", text: "KEY_LEFT_GUI" },
+	    { value: "0x84", text: "KEY_RIGHT_CTRL" },
+	    { value: "0x85", text: "KEY_RIGHT_SHIFT" },
+	    { value: "0x86", text: "KEY_RIGHT_ALT" },
+	    { value: "0x87", text: "KEY_RIGHT_GUI" },
+	    { value: "0xDA", text: "KEY_UP_ARROW" },
+	    { value: "0xD9", text: "KEY_DOWN_ARROW" },
+	    { value: "0xD8", text: "KEY_LEFT_ARROW" },
+	    { value: "0xD7", text: "KEY_RIGHT_ARROW" },
+	    { value: "0xC2", text: "KEY_F1" },
+	    { value: "0xC3", text: "KEY_F2" },
+	    { value: "0xC4", text: "KEY_F3" },
+	    { value: "0xC5", text: "KEY_F4" },
+	    { value: "0xC6", text: "KEY_F5" },
+	    { value: "0xC7", text: "KEY_F6" },
+	    { value: "0xC8", text: "KEY_F7" },
+	    { value: "0xC9", text: "KEY_F8" },
+	    { value: "0xCA", text: "KEY_F9" },
+	    { value: "0xCB", text: "KEY_F10" },
+	    { value: "0xCC", text: "KEY_F11" },
+	    { value: "0xCD", text: "KEY_F12" },
+	    { value: "0xCE", text: "KEY_F13" },
+	    { value: "0xCF", text: "KEY_F14" },
+	    { value: "0xD0", text: "KEY_F15" },
+	    { value: "0xD1", text: "KEY_F16" },
+	    { value: "0xD2", text: "KEY_F17" },
+	    { value: "0xD3", text: "KEY_F18" },
+	    { value: "0xD4", text: "KEY_F19" },
+	    { value: "0xD5", text: "KEY_F20" },
+	    { value: "0xD6", text: "KEY_F21" },
+	    { value: "0xD7", text: "KEY_F22" },
+	    { value: "0xD8", text: "KEY_F23" },
+	    { value: "0xD9", text: "KEY_F24" },
+	    { value: "0xEA", text: "KEY_NUM_0" },
+	    { value: "0xE1", text: "KEY_NUM_1" },
+	    { value: "0xE2", text: "KEY_NUM_2" },
+	    { value: "0xE3", text: "KEY_NUM_3" },
+	    { value: "0xE4", text: "KEY_NUM_4" },
+	    { value: "0xE5", text: "KEY_NUM_5" },
+	    { value: "0xE6", text: "KEY_NUM_6" },
+	    { value: "0xE7", text: "KEY_NUM_7" },
+	    { value: "0xE8", text: "KEY_NUM_8" },
+	    { value: "0xE9", text: "KEY_NUM_9" },
+	    { value: "0xDC", text: "KEY_NUM_SLASH" },
+	    { value: "0xDD", text: "KEY_NUM_ASTERISK" },
+	    { value: "0xDE", text: "KEY_NUM_MINUS" },
+	    { value: "0xDF", text: "KEY_NUM_PLUS" },
+	    { value: "0xE0", text: "KEY_NUM_ENTER" },
+	    { value: "0xEB", text: "KEY_NUM_PERIOD" },
+	    { value: "0xB2", text: "KEY_BACKSPACE" },
+	    { value: "0xB3", text: "KEY_TAB" },
+	    { value: "0xB0", text: "KEY_RETURN" },
+	    { value: "0xB1", text: "KEY_ESC" },
+	    { value: "0xD1", text: "KEY_INSERT" },
+	    { value: "0xCE", text: "KEY_PRTSC" },
+	    { value: "0xD4", text: "KEY_DELETE" },
+	    { value: "0xD3", text: "KEY_PAGE_UP" },
+	    { value: "0xD6", text: "KEY_PAGE_DOWN" },
+	    { value: "0xD2", text: "KEY_HOME" },
+	    { value: "0xD5", text: "KEY_END" },
+	    { value: "0xC1", text: "KEY_CAPS_LOCK" }
+	];
+
+
+
     // Zentrale Konstante für verfügbare Protokolle
 		const PROTOCOLS = [
 				{value: "0", text: "UNKNOWN"},
