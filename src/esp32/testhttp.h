@@ -605,43 +605,39 @@ function saveData() {
 			}
 		}
 
-    // Direktaufruf für IR
-        function sendIRData() {
+	// Direktaufruf für IR
+	function sendIRData() {
 		logMessage("Direct Call (IR) initiated...");
 
-		// Werte aus den Eingabefeldern holen
 		const protocol = document.getElementById('protocolInput').value;
 		const address = document.getElementById('addressInput').value;
 		const command = document.getElementById('commandInput').value;
 		const repeat = document.getElementById('repeatIR').checked;
 
-		// Überprüfen, ob alle Felder ausgefüllt sind
 		if (!protocol || !address || !command) {
 			alert('Bitte füllen Sie alle Felder aus!');
-			return; // Verhindert das Senden der Anfrage, falls ein Feld fehlt
+			return;
 		}
 
-		// URL-Parameter erstellen
 		const params = new URLSearchParams({
 			protocol: protocol,
 			address: address,
 			command: command,
-			repeats: repeat ? 'true' : 'false' // Boolean in String umwandeln
+			repeats: repeat ? '0' : '1' // Assuming 0 for false and 1 for true
 		});
-		
-		// Fetch-Aufruf mit URL-Parametern
-		fetch('/sendIR', {
-			method: 'POST', // Methode muss POST sein
+
+		fetch('http://192.168.10.167/sendIR', {
+			method: 'POST',
 			headers: {
 				'Content-Type': 'application/x-www-form-urlencoded'
 			},
-			body: params.toString() // URL-kodierte Formulardaten
+			body: params.toString()
 		})
 		.then(response => {
 			if (!response.ok) {
 				throw new Error('HTTP error! status: ' + response.status);
 			}
-			return response.text(); // Text-Antwort des ESP lesen
+			return response.text();
 		})
 		.then(result => {
 			console.log('IR Data Sent:', result);
