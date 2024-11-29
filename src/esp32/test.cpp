@@ -140,7 +140,7 @@ void IRRecvTask(void *pvParameters) {
         output(output) {} size_t write(uint8_t c) { output += (char)c; return 1; } }; 
         StringPrinter printer(output); printActiveIRProtocols(&printer); return output; }();
     String protocols = "Activated IR Protocols: " + protocol;
-    events.send(protocol.c_str(), "Rcv IR-Data: ");
+    events.send(protocol.c_str());
     // ANCHOR ws.textAll(protocol.c_str());
     Serial.println(protocol);
 
@@ -162,7 +162,9 @@ void IRRecvTask(void *pvParameters) {
                              " Address: 0x" + String(data.address, HEX) +
                              " Code: 0x" + String(data.code, HEX) +
                              " Repeat: " + String(data.isRepeat ? "true" : "false");
-            events.send(rcvInfo.c_str(), "Rcv IR-Data: ");
+            vTaskDelay(pdMS_TO_TICKS(100)); // Ensure events object is ready
+            events.send(rcvInfo.c_str());
+            Serial.println(rcvInfo);
         }
         vTaskDelay(pdMS_TO_TICKS(10)); // Kurze Pause, um anderen Tasks Zeit zu geben
     }
@@ -170,7 +172,7 @@ void IRRecvTask(void *pvParameters) {
 // Sendet die IR Daten
 void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol)
 {
-
+    Serial.println(String(protocol));
     String protocolUpper = getProtocolString(protocol);
     std::transform(protocolUpper.begin(), protocolUpper.end(), protocolUpper.begin(), ::toupper);
 
@@ -191,7 +193,9 @@ void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t proto
     else if (protocolUpper == "SONY")
     {
         maskedAddress = address & 0xFF;
-        IrSender.sendSony(maskedAddress, command, repeats);
+        //IrSender.sendSony(maskedAddress, command, repeats);
+        String diagStr = "Sony: " + String(maskedAddress, HEX) + " " + String(command, HEX) + " " + String(repeats);
+        Serial.println(diagStr);
     }
     else if (protocolUpper == "LG")
     {
@@ -292,15 +296,19 @@ void setup() {
             { handleSendIr(request); });
     
         // Erstelle eine neue FreeRTOS-Task für die IR-Empfänger-Logik
-    xTaskCreatePinnedToCore(
-        IRRecvTask,        // Task-Funktion
-        "IRRecvTask",      // Name der Task
-        2048,              // Stapelgröße in Wörtern
-        NULL,              // Parameter für die Task
-        1,                 // Priorität der Task
-        NULL,              // Task-Handle
-        1                  // Kern, auf dem die Task ausgeführt werden soll
-    );
+    BaseType_t result = xTaskCreatePinnedToCore(
+            IRRecvTask,        // Task-Funktion
+            "IRRecvTask",      // Name der Task
+            2048,              // Stapelgröße in Wörtern
+            NULL,              // Parameter für die Task
+            1,                 // Priorität der Task
+            NULL,              // Task-Handle
+            1                  // Kern, auf dem die Task ausgeführt werden soll
+        );
+
+        if (result != pdPASS) {
+            Serial.println("Failed to create IRRecvTask");
+        }
 }
 
 /* // Simulierte Log-Daten
@@ -308,7 +316,7 @@ unsigned long previousMillis = 0;
 const long interval = 1000; // Intervall (1 Sekunde) */
 
 void loop() {
-    readIR();
+    
 /*     static unsigned long previousMillis = 0;
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis >= interval) {
