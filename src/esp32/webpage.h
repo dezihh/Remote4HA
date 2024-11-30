@@ -173,13 +173,13 @@
   <h1>IR / BLE Route Editor</h1>
 
   <div class="defRoutBox"> 
-    <div class="routHeader">Send Data Default to API:</div> 
+    <div class="routHeader">Host Parameters:</div> 
     <div class="routeField-container">
         <label for="hostAddressInput">Hostaddress:</label>
         <input type="text" id="hostAddressInput" placeholder="Enter Hostaddress">
 		</div>
 		<div class="routCheckBox">
-        <label for="forwardCheckbox">Forward</label>
+        <label for="forwardCheckbox">Forward:</label>
         <input type="checkbox" id="forwardCheckbox">
     </div>
   </div>
@@ -245,7 +245,7 @@
             <select id="BLEprotocolInput">
                 <!-- Optionen werden dynamisch hinzugefügt -->
             </select>
-            <input type="text" id="keycodeInput" placeholder="Keycode (Hex)">
+            <input type="text" id="keycodeInput" placeholder="Single char (Lower)" maxlength="1">
             <select id="repeatBLE">
                 <option value="true">True</option>
                 <option value="false" selected>False</option>
@@ -587,9 +587,6 @@ function saveData() {
     const sendApiHost = `APIHost,${APIHost}`; // Formatiere die Zeile
 		// Füge den Status als letzte Zeile hinzu
     data.push(sendApiHost)
-
-
-		data.push(sendToApiRow);
 
     // Verbinde alle Zeilen zu einem einzigen String mit Zeilenumbrüchen
     const formattedData = data.join("\n");
