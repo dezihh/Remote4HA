@@ -1,9 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="icon" href="data:,">
     <title>Remote4HAEddy</title>
 </head>
   <style>
@@ -97,7 +97,6 @@
 		
 	}
 
-
 	/* Default Route Box Styles - Fixed Selector */
     .defRoutBox {
         border: 2px solid #d1d1d1;
@@ -113,60 +112,61 @@
         margin-bottom: 5px;
         color: #333;
     }
-		
-		.forwardCheckbox{
-			align-items: right;
-		}
-		
+
 		.routeField-container {
 			display: flex;
 			align-items: right;
 			gap: 10px;
     }
 		
-	  .routeField-container input {
-		flex: 1;
-		min-width: 120px;
-	} 
+		.routCheckBox {
+				display: flex; /* Flexbox für einfache Ausrichtung */
+				justify-content: flex-end; /* Elemente am rechten Rand ausrichten */
+				align-items: center; /* Vertikale Ausrichtung */
+		}
+
+		.routCheckBox label {
+				margin-right: 10px; /* Abstand von 10px vor der Checkbox */
+				text-align: right; /* Text im Label rechtsbündig ausrichten (optional) */
+		}
 		
-		
-	.field-container {
-			display: flex;
-			align-items: center;
-			gap: 10px;
-    }
+		.field-container {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
 
-	.field-container select {
-		flex: 0;
-		width: auto;
-	} 
+		.field-container select {
+			flex: 0;
+			width: auto;
+		} 
 
-	.field-container input {
-		flex: 1;
-		min-width: 120px;
-	} 
+		.field-container input {
+			flex: 1;
+			min-width: 120px;
+		} 
 
-	.field-container button {
-		flex: 0;
-		padding: 5px 10px;
-		background-color: #4CAF50;
-		color: white;
-		border: none;
-		border-radius: 3px;
-		cursor: pointer;
-	}
+		.field-container button {
+			flex: 0;
+			padding: 5px 10px;
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			border-radius: 3px;
+			cursor: pointer;
+		}
 
-	.field-container button:hover {
-		background-color: #45a049;
-	}
+		.field-container button:hover {
+			background-color: #45a049;
+		}
 
-	/* Region Styles */
-	.region2 {
-		text-align: center;
-		background-color: #f0f0f0;
-		max-height: 200px;
-		overflow-y: auto;
-	}
+		/* Region Styles */
+		.region2 {
+			text-align: center;
+			background-color: #f0f0f0;
+			max-height: 200px;
+			overflow-y: auto;
+		}
   </style>
 
 <body>
@@ -177,6 +177,8 @@
     <div class="routeField-container">
         <label for="hostAddressInput">Hostaddress:</label>
         <input type="text" id="hostAddressInput" placeholder="Enter Hostaddress">
+		</div>
+		<div class="routCheckBox">
         <label for="forwardCheckbox">Forward</label>
         <input type="checkbox" id="forwardCheckbox">
     </div>
@@ -240,7 +242,7 @@
 
         <!-- Felder für BLE -->
         <div id="bleFields" class="field-container" style="display: none;">
-            <select id="protocolInput">
+            <select id="BLEprotocolInput">
                 <!-- Optionen werden dynamisch hinzugefügt -->
             </select>
             <input type="text" id="keycodeInput" placeholder="Keycode (Hex)">
@@ -259,7 +261,8 @@
   <script>
     // BLE Modifier
     const VALID_KEYS = [
-            { value: "0x80", text: "KEY_LEFT_CTRL" },
+			{ value: "0x00", text: "" },
+      { value: "0x80", text: "KEY_LEFT_CTRL" },
 	    { value: "0x81", text: "KEY_LEFT_SHIFT" },
 	    { value: "0x82", text: "KEY_LEFT_ALT" },
 	    { value: "0x83", text: "KEY_LEFT_GUI" },
@@ -382,14 +385,23 @@
 			logElement.scrollTop = logElement.scrollHeight;
 		});
 			
-		    // Für IR Send Protocolle aufschlüsseln
-				const protocolSelect = document.getElementById("protocolInput");
-				PROTOCOLS.forEach(protocol => {
-						const option = document.createElement("option");
-						option.value = protocol.value; // Zahlenwert, der gesendet wird
-						option.textContent = protocol.text; // Text, der angezeigt wird
-						protocolSelect.appendChild(option);
-				});
+			// Für IR Send Protocolle aufschlüsseln
+			const protocolSelect = document.getElementById("protocolInput");
+			PROTOCOLS.forEach(protocol => {
+					const option = document.createElement("option");
+					option.value = protocol.value; // Zahlenwert, der gesendet wird
+					option.textContent = protocol.text; // Text, der angezeigt wird
+					protocolSelect.appendChild(option);
+			});
+			
+			const BLEprotocolSelect = document.getElementById("BLEprotocolInput");
+			VALID_KEYS.forEach(protocol => {
+					const option = document.createElement("option");
+					option.value = protocol.value; // Zahlenwert, der gesendet wird
+					option.textContent = protocol.text; // Text, der angezeigt wird
+					BLEprotocolSelect.appendChild(option);
+			});
+				
 
 	// Funktion: Neue Zeile hinzufügen
 	function addRow(rowData = null) {
