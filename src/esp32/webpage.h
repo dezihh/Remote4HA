@@ -365,6 +365,7 @@
 		];
 
 		const PROT_DEFAULT = "0"; // Standardwert für Protokolle
+		const MOD_DEFAULT="";
 		const BOOLS = [ { value: "0", text: "False" }, { value: "1", text: "True" } ];
 		const MAYBE = [ { value: "0", text: "False" }, { value: "1", text: "True" }, { value: "2", text: "Beides" } ];
 		
@@ -436,8 +437,8 @@
 				<td><input type="text" value="${defaultValues[10] || "0x00"}"></td>
 				<td><input type="text" value="${defaultValues[11] || "0x0000"}"></td>
 				<td>${createBooleanDropdown(defaultValues[12] === "false")}</td>
-				<td><input type="text" value="${defaultValues[13] || "None"}"></td>
-				<td><input type="text" value="${defaultValues[14] || "0x00"}"></td>
+				<td>${createModifierDropdown(defaultValues[13])}</td>
+				<td><input type="text" value="${defaultValues[14] || ""}"></td>
 				<td>${createBooleanDropdown(defaultValues[15] === "true")}</td>
 				<td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>	`;
 			tableBody.appendChild(newRow);
@@ -456,6 +457,18 @@
 				</option> `).join("")} 
 			</select> 
 			`;
+		}
+		
+		function createModifierDropdown(selectedValue = "default") { 
+			const isSelectedValueValid = VALID_KEYS.some(option => option.value === selectedValue); 
+			const valueToUse = isSelectedValueValid ? selectedValue : MOD_DEFAULT; 
+			return ` 
+				<select> ${VALID_KEYS.map(option => ` 
+					<option value="${option.value}" ${option.value === valueToUse ? "selected" : ""}> 
+						${option.text} 
+					</option> `).join("")} 
+				</select> 
+				`;
 		}
 
 	//Select Feld Bool zu Zahl mappen 
@@ -563,12 +576,20 @@ function saveData() {
             .replace(/,$/, ""); // Entferne das letzte Komma
     });
 
-    // Status der Radio-Buttons auslesen
-    const sendToApiEnabled = document.getElementById("sendToApiTrue").checked;
-    const sendToApiRow = `sendApiToTrue,${sendToApiEnabled}`; // Formatiere die Zeile
-
-    // Füge den Status als letzte Zeile hinzu
+    // Status der FoewardCheckbox auslesen
+		const sendToApiEnabled = document.getElementById("forwardCheckbox").checked;
+    const sendToApiRow = `sendToApi,${sendToApiEnabled}`; // Formatiere die Zeile
+		// Füge den Status als vorletzte Zeile hinzu
     data.push(sendToApiRow);
+		
+		// API Host
+		const APIHost = document.getElementById("hostAddressInput").value
+    const sendApiHost = `APIHost,${APIHost}`; // Formatiere die Zeile
+		// Füge den Status als letzte Zeile hinzu
+    data.push(sendApiHost)
+
+
+		data.push(sendToApiRow);
 
     // Verbinde alle Zeilen zu einem einzigen String mit Zeilenumbrüchen
     const formattedData = data.join("\n");
@@ -752,7 +773,7 @@ function saveData() {
 			<td><input type="text" value="${values[10]}"></td>
 			<td><input type="text" value="${values[11]}"></td>
 			<td>${createBooleanDropdown(values[12])}</td>
-			<td><input type="text" value="${values[13]}"></td>
+			<td>${createModifierDropdown(values[13])}</td>
 			<td><input type="text" value="${values[14]}"></td>
 			<td>${createBooleanDropdown(values[15])}</td>
 			<td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>
