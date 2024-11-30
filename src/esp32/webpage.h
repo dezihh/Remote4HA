@@ -1,18 +1,14 @@
-
-#ifndef WEBPAGE_H
-#define WEBPAGE_H
-
-const char htmlPage[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="icon" href="data:,">
     <title>Remote4HAEddy</title>
 </head>
   <style>
 	/* Base Table Styles */
-	table { 
+	  table { 
 		width: 100%; 
 		border-collapse: collapse; 
 	}
@@ -96,94 +92,97 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 		background-color: #f9f9f9;
 		padding: 10px;
 		font-family: monospace;
-		text-align: left;
+		text-align: right;
 		margin: 0 auto;
 		
 	}
-	
 
 	/* Default Route Box Styles - Fixed Selector */
-	.defRoutBox { 
-		border: 2px solid #d1d1d1; /* Corrected selector from .defRouteBox to .defRoutBox */
-		background-color: #f0f0f0; /* Lightened background for better visibility */
-		padding: 10px;
-		margin-bottom: 10px;
-		display: inline-block;
-		color: #333; /* Darkened text color for readability */
-		float: right;
-	}
+    .defRoutBox {
+        border: 2px solid #d1d1d1;
+        background-color: #f0f0f0;
+        padding: 10px;
+        margin-bottom: 10px;
+        display: inline-block;
+        color: #333;
+        float: right;
+    }
+    .routHeader {
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #333;
+    }
 
-	.routHeader {
-		font-weight: bold;
-		margin-bottom: 5px;
-		color: #333;
-	}
+		.routeField-container {
+			display: flex;
+			align-items: right;
+			gap: 10px;
+    }
+		
+		.routCheckBox {
+				display: flex; /* Flexbox für einfache Ausrichtung */
+				justify-content: flex-end; /* Elemente am rechten Rand ausrichten */
+				align-items: center; /* Vertikale Ausrichtung */
+		}
 
-	/* Radio Button Styles */
-	.radio-buttons {
-		display: flex;
-		gap: 10px;
-	}
+		.routCheckBox label {
+				margin-right: 10px; /* Abstand von 10px vor der Checkbox */
+				text-align: right; /* Text im Label rechtsbündig ausrichten (optional) */
+		}
+		
+		.field-container {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
 
-	.radio-label {
-		font-weight: bold;
-		display: flex;
-		align-items: center;
-	}
+		.field-container select {
+			flex: 0;
+			width: auto;
+		} 
 
-	/* Field Container Styles */
-	.field-container {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 10px;
-		align-items: center;
-	}
+		.field-container input {
+			flex: 1;
+			min-width: 120px;
+		} 
 
-	.field-container select {
-		flex: 0;
-		width: auto;
-	}
+		.field-container button {
+			flex: 0;
+			padding: 5px 10px;
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			border-radius: 3px;
+			cursor: pointer;
+		}
 
-	.field-container input {
-		flex: 1;
-		min-width: 120px;
-	}
+		.field-container button:hover {
+			background-color: #45a049;
+		}
 
-	.field-container button {
-		flex: 0;
-		padding: 5px 10px;
-		background-color: #4CAF50;
-		color: white;
-		border: none;
-		border-radius: 3px;
-		cursor: pointer;
-	}
-
-	.field-container button:hover {
-		background-color: #45a049;
-	}
-
-	/* Region Styles */
-	.region2 {
-		text-align: center;
-		background-color: #f0f0f0;
-		max-height: 200px;
-		overflow-y: auto;
-	}
+		/* Region Styles */
+		.region2 {
+			text-align: center;
+			background-color: #f0f0f0;
+			max-height: 200px;
+			overflow-y: auto;
+		}
   </style>
 
 <body>
   <h1>IR / BLE Route Editor</h1>
 
-	<div class="defRoutBox"> 
-		<div class="routHeader">Send Data Default to API:</div> 
-		<div class="radio-buttons"> 
-			<label class="radio-label"> 
-				<input type="radio" id="sendToApiTrue" name="sendToApi" value="true"> Enabled </label> 
-			<label class="radio-label"> 
-				<input type="radio" id="sendToApiFalse" name="sendToApi" value="false"> Disabled 
-		</label> </div> </div>
-	<div>
+  <div class="defRoutBox"> 
+    <div class="routHeader">Send Data Default to API:</div> 
+    <div class="routeField-container">
+        <label for="hostAddressInput">Hostaddress:</label>
+        <input type="text" id="hostAddressInput" placeholder="Enter Hostaddress">
+		</div>
+		<div class="routCheckBox">
+        <label for="forwardCheckbox">Forward</label>
+        <input type="checkbox" id="forwardCheckbox">
+    </div>
+  </div>
 
   <div>
     <table id="dataTable">
@@ -243,7 +242,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 
         <!-- Felder für BLE -->
         <div id="bleFields" class="field-container" style="display: none;">
-            <select id="protocolInput">
+            <select id="BLEprotocolInput">
                 <!-- Optionen werden dynamisch hinzugefügt -->
             </select>
             <input type="text" id="keycodeInput" placeholder="Keycode (Hex)">
@@ -262,7 +261,8 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   <script>
     // BLE Modifier
     const VALID_KEYS = [
-            { value: "0x80", text: "KEY_LEFT_CTRL" },
+			{ value: "0x00", text: "" },
+      { value: "0x80", text: "KEY_LEFT_CTRL" },
 	    { value: "0x81", text: "KEY_LEFT_SHIFT" },
 	    { value: "0x82", text: "KEY_LEFT_ALT" },
 	    { value: "0x83", text: "KEY_LEFT_GUI" },
@@ -332,76 +332,77 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 
     // Zentrale Konstante für verfügbare Protokolle
 		const PROTOCOLS = [
-				{value: "0", text: "UNKNOWN"},
-				{value: "1", text: "PULSE_WIDTH"},
-				{value: "2", text: "PULSE_DISTANCE"},
-				{value: "3", text: "APPLE"},
-				{value: "4", text: "DENON"},
-				{value: "5", text: "JVC"},
-				{value: "6", text: "LG"},
-				{value: "7", text: "LG2"},
-				{value: "8", text: "NEC"},
-				{value: "9", text: "NEC2"},
-				{value: "10", text: "ONKYO"},
-				{value: "11", text: "PANASONIC"},
-				{value: "12", text: "KASEIKYO"},
-				{value: "13", text: "KASEIKYO_DENON"},
-				{value: "14", text: "KASEIKYO_SHARP"},
-				{value: "15", text: "KASEIKYO_JVC"},
-				{value: "16", text: "KASEIKYO_MITSUBISHI"},
-				{value: "17", text: "RC5"},
-				{value: "18", text: "RC6"},
-				{value: "19", text: "RC6A"},
-				{value: "20", text: "SAMSUNG"},
-				{value: "21", text: "SAMSUNGLG"},
-				{value: "22", text: "SAMSUNG48"},
-				{value: "23", text: "SHARP"},
-				{value: "24", text: "SONY"},
-				{value: "25", text: "BANG_OLUFSEN"},
-				{value: "26", text: "BOSEWAVE"},
-				{value: "27", text: "LEGO_PF"},
-				{value: "28", text: "MAGIQUEST"},
-				{value: "29", text: "WHYNTER"},
-				{value: "30", text: "FAST"}
+			{value: "0x0", text: "UNKNOWN"},
+			{value: "0x1", text: "PULSE_WIDTH"},
+			{value: "0x2", text: "PULSE_DISTANCE"},
+			{value: "0x3", text: "APPLE"},
+			{value: "0x4", text: "DENON"},
+			{value: "0x5", text: "JVC"},
+			{value: "0x6", text: "LG"},
+			{value: "0x7", text: "LG2"},
+			{value: "0x8", text: "NEC"},
+			{value: "0x9", text: "NEC2"},
+			{value: "0xA", text: "ONKYO"},
+			{value: "0xB", text: "PANASONIC"},
+			{value: "0xC", text: "KASEIKYO"},
+			{value: "0xD", text: "KASEIKYO_DENON"},
+			{value: "0xE", text: "KASEIKYO_SHARP"},
+			{value: "0xF", text: "KASEIKYO_JVC"},
+			{value: "0x10", text: "KASEIKYO_MITSUBISHI"},
+			{value: "0x11", text: "RC5"},
+			{value: "0x12", text: "RC6"},
+			{value: "0x13", text: "SAMSUNG"},
+			{value: "0x14", text: "SAMSUNGLG"},
+			{value: "0x15", text: "SAMSUNG48"},
+			{value: "0x16", text: "SHARP"},
+			{value: "0x17", text: "SONY"},
+			{value: "0x18", text: "BANG_OLUFSEN"},
+			{value: "0x19", text: "BOSEWAVE"},
+			{value: "0x1A", text: "LEGO_PF"},
+			{value: "0x1B", text: "MAGIQUEST"},
+			{value: "0x1C", text: "WHYNTER"},
+			{value: "0x1D", text: "FAST"}
 		];
 
 		const PROT_DEFAULT = "0"; // Standardwert für Protokolle
 		const BOOLS = [ { value: "0", text: "False" }, { value: "1", text: "True" } ];
 		const MAYBE = [ { value: "0", text: "False" }, { value: "1", text: "True" }, { value: "2", text: "Beides" } ];
+		
+		// SSE beginns
+		const eventSource = new EventSource("/events");
+		const logElement = document.getElementById("logBox");
 
-				// WebSocket-Setup
-        var gateway = `ws://${window.location.hostname}/ws`;
-        var websocket;
-        function initWebSocket() {
-            websocket = new WebSocket(gateway);
-            websocket.onopen    = onOpen;
-            websocket.onclose   = onClose;
-            websocket.onmessage = onMessage;
-        }
+		eventSource.onmessage = function(event) {
+				logElement.innerHTML += event.data + "<br>";
+				logElement.scrollTop = logElement.scrollHeight;
+		};
 
-        function onOpen(event) {
-            console.log('Connection opened');
-        }
+		eventSource.onerror = function() {
+				logElement.innerHTML += "⚠️ Connection lost. Retrying...<br>";
+		};
 
-        function onClose(event) {
-            console.log('Connection closed');
-            setTimeout(initWebSocket, 2000);
-        }
-
-        function onMessage(event) {
-            var logBox = document.getElementById('logBox');
-            logBox.innerHTML += event.data + '<br>';
-            logBox.scrollTop = logBox.scrollHeight;
-        }
+		eventSource.addEventListener("log", function(event) {
+			logElement.innerHTML += "Log: " + event.data + "<br>";
+			logElement.scrollTop = logElement.scrollHeight;
+		});
 			
-		    // Für IR Send Protocolle aufschlüsseln
-				const protocolSelect = document.getElementById("protocolInput");
-				PROTOCOLS.forEach(protocol => {
-						const option = document.createElement("option");
-						option.value = protocol.value; // Zahlenwert, der gesendet wird
-						option.textContent = protocol.text; // Text, der angezeigt wird
-						protocolSelect.appendChild(option);
-				});
+			// Für IR Send Protocolle aufschlüsseln
+			const protocolSelect = document.getElementById("protocolInput");
+			PROTOCOLS.forEach(protocol => {
+					const option = document.createElement("option");
+					option.value = protocol.value; // Zahlenwert, der gesendet wird
+					option.textContent = protocol.text; // Text, der angezeigt wird
+					protocolSelect.appendChild(option);
+			});
+			
+			const BLEprotocolSelect = document.getElementById("BLEprotocolInput");
+			VALID_KEYS.forEach(protocol => {
+					const option = document.createElement("option");
+					option.value = protocol.value; // Zahlenwert, der gesendet wird
+					option.textContent = protocol.text; // Text, der angezeigt wird
+					BLEprotocolSelect.appendChild(option);
+			});
+				
 
 	// Funktion: Neue Zeile hinzufügen
 	function addRow(rowData = null) {
@@ -614,8 +615,8 @@ function saveData() {
 			}
 		}
 
-    // Direktaufruf für IR
-        function sendIRData() {
+	// Direktaufruf für IR
+  function sendIRData() {
 		logMessage("Direct Call (IR) initiated...");
 
 		// Werte aus den Eingabefeldern holen
@@ -637,6 +638,7 @@ function saveData() {
 			command: command,
 			repeats: repeat ? 'true' : 'false' // Boolean in String umwandeln
 		});
+		
 
 		// Fetch-Aufruf mit URL-Parametern
 		fetch('/sendIR', {
@@ -670,10 +672,13 @@ function saveData() {
     logMessage("Direct Call (BLE) initiated...");
 
     // Werte aus den Eingabefeldern abrufen
-    const modifier = document.getElementById('modifierInput').value;
-    const keycode = document.getElementById('keycodeInput').value;
+    const modifier = document.getElementById('BLEprotocolInput').value;
+    let keycode = document.getElementById('keycodeInput').value;
     const repeat = document.getElementById('repeatBLE').value;
 
+	// Konvertiere keycode zu Kleinbuchstaben oder setze "None" wenn leer
+    keycode = keycode ? keycode.toLowerCase() : "None";
+		
     // Überprüfen, ob alle Felder ausgefüllt sind
     if (!modifier || !keycode || !repeat) {
         alert('Bitte füllen Sie alle Felder aus!');
@@ -712,7 +717,7 @@ function saveData() {
     // Funktion: Log-Nachricht hinzufügen
     function logMessage(message) {
       const logBox = document.getElementById("logBox");
-      logBox.innerHTML += "local: "+ message + "<br>";
+      //logBox.innerHTML += "local: "+ message + "<br>";
       logBox.scrollTop = logBox.scrollHeight;
     }
 
@@ -804,13 +809,9 @@ function saveData() {
 
     // Initialisierung
     window.onload = function () {
-       initWebSocket(); // WebSocket-Verbindung starten
-			 toggleInputFields();
-       loadData();
+        toggleInputFields();
+        loadData();
     };
   </script>
 	</body>
 </html>
-)rawliteral";
-
-#endif // WEBPAGE_H
