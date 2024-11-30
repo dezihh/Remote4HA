@@ -1,7 +1,3 @@
-#ifndef WEBPAGE_H
-#define WEBPAGE_H
-
-const char htmlPage[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,7 +7,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 </head>
   <style>
 	/* Base Table Styles */
-	table { 
+	  table { 
 		width: 100%; 
 		border-collapse: collapse; 
 	}
@@ -99,30 +95,42 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 		margin: 0 auto;
 		
 	}
-	
+
 
 	/* Default Route Box Styles - Fixed Selector */
-	.defRoutBox { 
-		border: 2px solid #d1d1d1; /* Corrected selector from .defRouteBox to .defRoutBox */
-		background-color: #f0f0f0; /* Lightened background for better visibility */
-		padding: 10px;
-		margin-bottom: 10px;
-		display: inline-block;
-		color: #333; /* Darkened text color for readability */
-		float: right;
-	}
+	    .defRoutBox {
+        border: 2px solid #d1d1d1;
+        background-color: #f0f0f0;
+        padding: 10px;
+        margin-bottom: 10px;
+        display: inline-block;
+        color: #333;
+        float: right;
+    }
+    .routHeader {
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #333;
+    }
+    .field-container {
+        display: flex;
+        align-items: center;
+				//flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .field-container input[type="text"] {
+        flex: 1;
+    }
+		.field-container label {
+        margin-bottom: 5px;
+    }
 
-	.routHeader {
-		font-weight: bold;
-		margin-bottom: 5px;
-		color: #333;
-	}
-
-	/* Radio Button Styles */
+	/* Radio Button Styles 
 	.radio-buttons {
 		display: flex;
 		gap: 10px;
-	}
+	}*/
 
 	.radio-label {
 		font-weight: bold;
@@ -161,6 +169,9 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 	.field-container button:hover {
 		background-color: #45a049;
 	}
+	.forwardCheckbox {
+		background-color: #45a049;
+	}
 
 	/* Region Styles */
 	.region2 {
@@ -174,15 +185,15 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 <body>
   <h1>IR / BLE Route Editor</h1>
 
-	<div class="defRoutBox"> 
-		<div class="routHeader">Send Data Default to API:</div> 
-		<div class="radio-buttons"> 
-			<label class="radio-label"> 
-				<input type="radio" id="sendToApiTrue" name="sendToApi" value="true"> Enabled </label> 
-			<label class="radio-label"> 
-				<input type="radio" id="sendToApiFalse" name="sendToApi" value="false"> Disabled 
-		</label> </div> </div>
-	<div>
+  <div class="defRoutBox"> 
+    <div class="routHeader">Send Data Default to API:</div> 
+    <div class="field-container">
+        <label for="hostAddressInput">Hostaddress:</label>
+        <input type="text" id="hostAddressInput" placeholder="Enter Hostaddress">
+        <label for="forwardCheckbox">Forward</label>
+        <input type="checkbox" id="forwardCheckbox">
+    </div>
+  </div>
 
   <div>
     <table id="dataTable">
@@ -331,37 +342,36 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 
     // Zentrale Konstante für verfügbare Protokolle
 		const PROTOCOLS = [
-				{value: "0", text: "UNKNOWN"},
-				{value: "1", text: "PULSE_WIDTH"},
-				{value: "2", text: "PULSE_DISTANCE"},
-				{value: "3", text: "APPLE"},
-				{value: "4", text: "DENON"},
-				{value: "5", text: "JVC"},
-				{value: "6", text: "LG"},
-				{value: "7", text: "LG2"},
-				{value: "8", text: "NEC"},
-				{value: "9", text: "NEC2"},
-				{value: "10", text: "ONKYO"},
-				{value: "11", text: "PANASONIC"},
-				{value: "12", text: "KASEIKYO"},
-				{value: "13", text: "KASEIKYO_DENON"},
-				{value: "14", text: "KASEIKYO_SHARP"},
-				{value: "15", text: "KASEIKYO_JVC"},
-				{value: "16", text: "KASEIKYO_MITSUBISHI"},
-				{value: "17", text: "RC5"},
-				{value: "18", text: "RC6"},
-				{value: "19", text: "RC6A"},
-				{value: "20", text: "SAMSUNG"},
-				{value: "21", text: "SAMSUNGLG"},
-				{value: "22", text: "SAMSUNG48"},
-				{value: "23", text: "SHARP"},
-				{value: "24", text: "SONY"},
-				{value: "25", text: "BANG_OLUFSEN"},
-				{value: "26", text: "BOSEWAVE"},
-				{value: "27", text: "LEGO_PF"},
-				{value: "28", text: "MAGIQUEST"},
-				{value: "29", text: "WHYNTER"},
-				{value: "30", text: "FAST"}
+			{value: "0x0", text: "UNKNOWN"},
+			{value: "0x1", text: "PULSE_WIDTH"},
+			{value: "0x2", text: "PULSE_DISTANCE"},
+			{value: "0x3", text: "APPLE"},
+			{value: "0x4", text: "DENON"},
+			{value: "0x5", text: "JVC"},
+			{value: "0x6", text: "LG"},
+			{value: "0x7", text: "LG2"},
+			{value: "0x8", text: "NEC"},
+			{value: "0x9", text: "NEC2"},
+			{value: "0xA", text: "ONKYO"},
+			{value: "0xB", text: "PANASONIC"},
+			{value: "0xC", text: "KASEIKYO"},
+			{value: "0xD", text: "KASEIKYO_DENON"},
+			{value: "0xE", text: "KASEIKYO_SHARP"},
+			{value: "0xF", text: "KASEIKYO_JVC"},
+			{value: "0x10", text: "KASEIKYO_MITSUBISHI"},
+			{value: "0x11", text: "RC5"},
+			{value: "0x12", text: "RC6"},
+			{value: "0x13", text: "SAMSUNG"},
+			{value: "0x14", text: "SAMSUNGLG"},
+			{value: "0x15", text: "SAMSUNG48"},
+			{value: "0x16", text: "SHARP"},
+			{value: "0x17", text: "SONY"},
+			{value: "0x18", text: "BANG_OLUFSEN"},
+			{value: "0x19", text: "BOSEWAVE"},
+			{value: "0x1A", text: "LEGO_PF"},
+			{value: "0x1B", text: "MAGIQUEST"},
+			{value: "0x1C", text: "WHYNTER"},
+			{value: "0x1D", text: "FAST"}
 		];
 
 		const PROT_DEFAULT = "0"; // Standardwert für Protokolle
@@ -797,6 +807,3 @@ function saveData() {
   </script>
 	</body>
 </html>
-)rawliteral";
-
-#endif // WEBPAGE_H
