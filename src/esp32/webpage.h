@@ -1,3 +1,4 @@
+const char htmlPage[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -438,8 +439,8 @@
 				<td><input type="text" value="${defaultValues[11] || "0x0000"}"></td>
 				<td>${createBooleanDropdown(defaultValues[12] === "false")}</td>
 				<td>${createModifierDropdown(defaultValues[13])}</td>
-				<td><input type="text" value="${defaultValues[14] || ""}"></td>
-				<td>${createBooleanDropdown(defaultValues[15] === "true")}</td>
+				<td><input type="text" maxlength="1" value="${defaultValues[14] || ""}"></td>
+				<td>${createBooleanDropdown(defaultValues[15] === "false")}</td>
 				<td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>	`;
 			tableBody.appendChild(newRow);
 			toggleFields(newRow.querySelector("select"));
@@ -771,7 +772,7 @@ function saveData() {
 			<td><input type="text" value="${values[11]}"></td>
 			<td>${createBooleanDropdown(values[12])}</td>
 			<td>${createModifierDropdown(values[13])}</td>
-			<td><input type="text" value="${values[14]}"></td>
+			<td><input type="text" maxlength="1" value="${values[14]}"></td>
 			<td>${createBooleanDropdown(values[15])}</td>
 			<td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>
 		`;
@@ -832,4 +833,6 @@ function saveData() {
     };
   </script>
 	</body>
-</html>
+</html>)rawliteral";
+
+#endif // WEBPAGE_H
