@@ -1,3 +1,6 @@
+#ifndef WEBPAGE_H
+#define WEBPAGE_H
+const char htmlPage[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -39,6 +42,34 @@
 	  color: #262625;
 	}
 
+	.tooltip {
+		position: relative;
+		display: inline-block;
+	}
+
+	.tooltip .tooltiptext {
+		visibility: hidden;
+		width: 300px;
+		max-height: 200px; /* Feste Höhe für das Scrollen */
+		overflow-y: auto; /* Ermöglicht das vertikale Scrollen */
+		background-color: #555;
+		color: #fff;
+		text-align: left;
+		border-radius: 5px;
+		padding: 10px;
+		position: absolute;
+		z-index: 1;
+		top: 0; /* Position the tooltip at the same height as the input field */
+		left: 105%; /* Position the tooltip to the right of the input field */
+		opacity: 0;
+		transition: opacity 0.3s;
+	}
+
+	.tooltip:hover .tooltiptext,
+	.tooltip .tooltiptext:hover {
+		visibility: visible;
+		opacity: 1;
+	}
 
 	/* Input and Button Styles */
 	input, select { 
@@ -173,13 +204,13 @@
   <h1>IR / BLE Route Editor</h1>
 
   <div class="defRoutBox"> 
-    <div class="routHeader">Send Data Default to API:</div> 
+    <div class="routHeader">Host Parameters:</div> 
     <div class="routeField-container">
-        <label for="hostAddressInput">Hostaddress:</label>
+        <label for="hostAddressInput">ServerURL:</label>
         <input type="text" id="hostAddressInput" placeholder="Enter Hostaddress">
 		</div>
 		<div class="routCheckBox">
-        <label for="forwardCheckbox">Forward</label>
+        <label for="forwardCheckbox">Forward:</label>
         <input type="checkbox" id="forwardCheckbox">
     </div>
   </div>
@@ -245,7 +276,10 @@
             <select id="BLEprotocolInput">
                 <!-- Optionen werden dynamisch hinzugefügt -->
             </select>
-            <input type="text" id="keycodeInput" placeholder="Keycode (Hex)">
+            <div class="tooltip">
+				<input type="text" id="keycodeInput" placeholder="Hex (0x))">
+				<div class="tooltiptext" id="tooltipContent"></div>
+				</div>
             <select id="repeatBLE">
                 <option value="true">True</option>
                 <option value="false" selected>False</option>
@@ -261,71 +295,15 @@
   <script>
     // BLE Modifier
     const VALID_KEYS = [
-			{ value: "0x00", text: "" },
-      { value: "0x80", text: "KEY_LEFT_CTRL" },
-	    { value: "0x81", text: "KEY_LEFT_SHIFT" },
-	    { value: "0x82", text: "KEY_LEFT_ALT" },
-	    { value: "0x83", text: "KEY_LEFT_GUI" },
-	    { value: "0x84", text: "KEY_RIGHT_CTRL" },
-	    { value: "0x85", text: "KEY_RIGHT_SHIFT" },
-	    { value: "0x86", text: "KEY_RIGHT_ALT" },
-	    { value: "0x87", text: "KEY_RIGHT_GUI" },
-	    { value: "0xDA", text: "KEY_UP_ARROW" },
-	    { value: "0xD9", text: "KEY_DOWN_ARROW" },
-	    { value: "0xD8", text: "KEY_LEFT_ARROW" },
-	    { value: "0xD7", text: "KEY_RIGHT_ARROW" },
-	    { value: "0xC2", text: "KEY_F1" },
-	    { value: "0xC3", text: "KEY_F2" },
-	    { value: "0xC4", text: "KEY_F3" },
-	    { value: "0xC5", text: "KEY_F4" },
-	    { value: "0xC6", text: "KEY_F5" },
-	    { value: "0xC7", text: "KEY_F6" },
-	    { value: "0xC8", text: "KEY_F7" },
-	    { value: "0xC9", text: "KEY_F8" },
-	    { value: "0xCA", text: "KEY_F9" },
-	    { value: "0xCB", text: "KEY_F10" },
-	    { value: "0xCC", text: "KEY_F11" },
-	    { value: "0xCD", text: "KEY_F12" },
-	    { value: "0xCE", text: "KEY_F13" },
-	    { value: "0xCF", text: "KEY_F14" },
-	    { value: "0xD0", text: "KEY_F15" },
-	    { value: "0xD1", text: "KEY_F16" },
-	    { value: "0xD2", text: "KEY_F17" },
-	    { value: "0xD3", text: "KEY_F18" },
-	    { value: "0xD4", text: "KEY_F19" },
-	    { value: "0xD5", text: "KEY_F20" },
-	    { value: "0xD6", text: "KEY_F21" },
-	    { value: "0xD7", text: "KEY_F22" },
-	    { value: "0xD8", text: "KEY_F23" },
-	    { value: "0xD9", text: "KEY_F24" },
-	    { value: "0xEA", text: "KEY_NUM_0" },
-	    { value: "0xE1", text: "KEY_NUM_1" },
-	    { value: "0xE2", text: "KEY_NUM_2" },
-	    { value: "0xE3", text: "KEY_NUM_3" },
-	    { value: "0xE4", text: "KEY_NUM_4" },
-	    { value: "0xE5", text: "KEY_NUM_5" },
-	    { value: "0xE6", text: "KEY_NUM_6" },
-	    { value: "0xE7", text: "KEY_NUM_7" },
-	    { value: "0xE8", text: "KEY_NUM_8" },
-	    { value: "0xE9", text: "KEY_NUM_9" },
-	    { value: "0xDC", text: "KEY_NUM_SLASH" },
-	    { value: "0xDD", text: "KEY_NUM_ASTERISK" },
-	    { value: "0xDE", text: "KEY_NUM_MINUS" },
-	    { value: "0xDF", text: "KEY_NUM_PLUS" },
-	    { value: "0xE0", text: "KEY_NUM_ENTER" },
-	    { value: "0xEB", text: "KEY_NUM_PERIOD" },
-	    { value: "0xB2", text: "KEY_BACKSPACE" },
-	    { value: "0xB3", text: "KEY_TAB" },
-	    { value: "0xB0", text: "KEY_RETURN" },
-	    { value: "0xB1", text: "KEY_ESC" },
-	    { value: "0xD1", text: "KEY_INSERT" },
-	    { value: "0xCE", text: "KEY_PRTSC" },
-	    { value: "0xD4", text: "KEY_DELETE" },
-	    { value: "0xD3", text: "KEY_PAGE_UP" },
-	    { value: "0xD6", text: "KEY_PAGE_DOWN" },
-	    { value: "0xD2", text: "KEY_HOME" },
-	    { value: "0xD5", text: "KEY_END" },
-	    { value: "0xC1", text: "KEY_CAPS_LOCK" }
+    { value: "0x00", text: "" },
+    { value: "0x01", text: "KEY_LEFT_CTRL" },
+    { value: "0x02", text: "KEY_LEFT_SHIFT" },
+    { value: "0x04", text: "KEY_LEFT_ALT" },
+    { value: "0x08", text: "KEY_LEFT_GUI" },
+    { value: "0x10", text: "KEY_RIGHT_CTRL" },
+    { value: "0x20", text: "KEY_RIGHT_SHIFT" },
+    { value: "0x40", text: "KEY_RIGHT_ALT" },
+	{ value: "0x80", text: "KEY_RIGHT_ALT" }
 	];
 
 
@@ -365,20 +343,46 @@
 		];
 
 		const PROT_DEFAULT = "0"; // Standardwert für Protokolle
+		const MOD_DEFAULT="";
 		const BOOLS = [ { value: "0", text: "False" }, { value: "1", text: "True" } ];
 		const MAYBE = [ { value: "0", text: "False" }, { value: "1", text: "True" }, { value: "2", text: "Beides" } ];
+		        const hidUsageCodes = [
+            "A=0x04", "B=0x05", "C=0x06", "D=0x07", "E=0x08", "F=0x09", "G=0x0A", "H=0x0B", "I=0x0C", "J=0x0D",
+            "K=0x0E", "L=0x0F", "M=0x10", "N=0x11", "O=0x12", "P=0x13", "Q=0x14", "R=0x15", "S=0x16", "T=0x17",
+            "U=0x18", "V=0x19", "W=0x1A", "X=0x1B", "Y=0x1C", "Z=0x1D", "1=0x1E", "2=0x1F", "3=0x20", "4=0x21",
+            "5=0x22", "6=0x23", "7=0x24", "8=0x25", "9=0x26", "0=0x27", "Enter=0x28", "Escape=0x29", "Backspace=0x2A",
+            "Tab=0x2B", "Space=0x2C", "-=0x2D", "=0x2E", "[=0x2F", "]=0x30", "\\=0x31", "#=0x32", ";=0x33", "'=0x34",
+            "`=0x35", ",=0x36", ".=0x37", "/=0x38", "Caps Lock=0x39", "F1=0x3A", "F2=0x3B", "F3=0x3C", "F4=0x3D",
+            "F5=0x3E", "F6=0x3F", "F7=0x40", "F8=0x41", "F9=0x42", "F10=0x43", "F11=0x44", "F12=0x45", "Print Screen=0x46",
+            "Scroll Lock=0x47", "Pause=0x48", "Insert=0x49", "Home=0x4A", "Page Up=0x4B", "Delete=0x4C", "End=0x4D",
+            "Page Down=0x4E", "Right Arrow=0x4F", "Left Arrow=0x50", "Down Arrow=0x51", "Up Arrow=0x52", "Num Lock=0x53",
+            "Keypad / =0x54", "Keypad * =0x55", "Keypad - =0x56", "Keypad + =0x57", "Keypad Enter=0x58", "Keypad 1=0x59",
+            "Keypad 2=0x5A", "Keypad 3=0x5B", "Keypad 4=0x5C", "Keypad 5=0x5D", "Keypad 6=0x5E", "Keypad 7=0x5F",
+            "Keypad 8=0x60", "Keypad 9=0x61", "Keypad 0=0x62", "Keypad .=0x63", "Left Control=0xE0", "Left Shift=0xE1",
+            "Left Alt=0xE2", "Left GUI=0xE3", "Right Control=0xE4", "Right Shift=0xE5", "Right Alt=0xE6", "Right GUI=0xE7",
+            "Media Play=0xE8", "Media Pause=0xE9", "Media Record=0xEA", "Media Fast Forward=0xEB", "Media Rewind=0xEC",
+            "Media Next Track=0xED", "Media Previous Track=0xEE", "Media Stop=0xEF", "Media Play/Pause=0xF0", "Media Mute=0xF1",
+            "Media Volume Up=0xF2", "Media Volume Down=0xF3", "(=0x26", ")=0x27", "{=0x2F", "}=0x30"
+        ];
 
-        const eventSource = new EventSource("/events");
-        const logElement = document.getElementById("logBox");
+        document.addEventListener("DOMContentLoaded", function() {
+            const tooltipContent = document.getElementById("tooltipContent");
+            tooltipContent.innerHTML = hidUsageCodes.join("<br>");
 
-        eventSource.onmessage = function(event) {
-            logElement.innerHTML += event.data + "<br>";
-            logElement.scrollTop = logElement.scrollHeight;
-        };
+	 });// Tooltip Ende
+	 
+		// SSE beginns
+		const eventSource = new EventSource("/events");
+		const logElement = document.getElementById("logBox");
 
-        eventSource.onerror = function() {
-            logElement.innerHTML += "⚠️ Connection lost. Retrying...<br>";
-        };
+		eventSource.onmessage = function(event) {
+				logElement.innerHTML += event.data + "<br>";
+				logElement.scrollTop = logElement.scrollHeight;
+		};
+
+		eventSource.onerror = function() {
+				logElement.innerHTML += "⚠️ Connection lost. Retrying...<br>";
+		};
 
 		eventSource.addEventListener("log", function(event) {
 			logElement.innerHTML += "Log: " + event.data + "<br>";
@@ -435,9 +439,9 @@
 				<td><input type="text" value="${defaultValues[10] || "0x00"}"></td>
 				<td><input type="text" value="${defaultValues[11] || "0x0000"}"></td>
 				<td>${createBooleanDropdown(defaultValues[12] === "false")}</td>
-				<td><input type="text" value="${defaultValues[13] || "None"}"></td>
-				<td><input type="text" value="${defaultValues[14] || "0x00"}"></td>
-				<td>${createBooleanDropdown(defaultValues[15] === "true")}</td>
+				<td>${createModifierDropdown(defaultValues[13])}</td>
+				<td><input type="text" value="${defaultValues[14] || ""}"></td>
+				<td>${createBooleanDropdown(defaultValues[15] === "false")}</td>
 				<td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>	`;
 			tableBody.appendChild(newRow);
 			toggleFields(newRow.querySelector("select"));
@@ -455,6 +459,18 @@
 				</option> `).join("")} 
 			</select> 
 			`;
+		}
+		
+		function createModifierDropdown(selectedValue = "default") { 
+			const isSelectedValueValid = VALID_KEYS.some(option => option.value === selectedValue); 
+			const valueToUse = isSelectedValueValid ? selectedValue : MOD_DEFAULT; 
+			return ` 
+				<select> ${VALID_KEYS.map(option => ` 
+					<option value="${option.value}" ${option.value === valueToUse ? "selected" : ""}> 
+						${option.text} 
+					</option> `).join("")} 
+				</select> 
+				`;
 		}
 
 	//Select Feld Bool zu Zahl mappen 
@@ -508,33 +524,45 @@
 	}
 
 	// Routendaten vom ESP laden
-	async function loadData() {
-		try {
-			const response = await fetch("/loadData");
-			if (!response.ok) {
-				throw new Error(`HTTP error! Status: ${response.status}`);
-			}
+async function loadData() {
+    try {
+        const response = await fetch("/loadData");
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
 
-			const data = await response.text();
-			const rows = data
-				.trim()
-				.split("\n")
-				.map(row => row.trim())
-				.filter(row => row !== "");
+        const data = await response.text();
+        console.log("Received data:", data); // Debug-Ausgabe
 
-			rows.forEach(row => {
-				addRow(row);
-			});
+        const rows = data
+            .trim()
+            .split("\n")
+            .map(row => row.trim())
+            .filter(row => row !== "");
 
-			// Aktualisiere die Felder, nachdem alle Zeilen geladen sind
-			updateAllRows();
+        rows.forEach(row => {
+            if (row.startsWith("APIHost=")) {
+                const hostAddress = row.substring("APIHost=".length);
+                console.log("Parsed hostAddress:", hostAddress); // Debug-Ausgabe
+                document.getElementById("hostAddressInput").value = hostAddress;
+            } else if (row.startsWith("sendToApi=")) {
+                const forward = row.substring("sendToApi=".length) === "true";
+                console.log("Parsed forward:", forward); // Debug-Ausgabe
+                document.getElementById("forwardCheckbox").checked = forward;
+            } else {
+                addRow(row);
+            }
+        });
 
-			logMessage("Data loaded successfully!");
-		} catch (error) {
-			logMessage(`Error loading data: ${error.message}`);
-		}
+        // Aktualisiere die Felder, nachdem alle Zeilen geladen sind
+        updateAllRows();
+
+        logMessage("Data loaded successfully!");
+    } catch (error) {
+        logMessage(`Error loading data: ${error.message}`);
+    }
 }
-		
+	/////////////////////////////////
     // Unterfunktion für Felddeaktivierung (aktivieren/deaktivieren)
     function toggleField(cell, enable) {
       const input = cell.querySelector("input, select");
@@ -562,12 +590,17 @@ function saveData() {
             .replace(/,$/, ""); // Entferne das letzte Komma
     });
 
-    // Status der Radio-Buttons auslesen
-    const sendToApiEnabled = document.getElementById("sendToApiTrue").checked;
-    const sendToApiRow = `sendApiToTrue,${sendToApiEnabled}`; // Formatiere die Zeile
-
-    // Füge den Status als letzte Zeile hinzu
+    // Status der FoewardCheckbox auslesen
+	const sendToApiEnabled = document.getElementById("forwardCheckbox").checked;
+    const sendToApiRow = `sendToApi,${sendToApiEnabled}`; // Formatiere die Zeile
+		// Füge den Status als vorletzte Zeile hinzu
     data.push(sendToApiRow);
+		
+		// API Host
+	const APIHost = document.getElementById("hostAddressInput").value
+    const sendApiHost = `APIHost,${APIHost}`; // Formatiere die Zeile
+		// Füge den Status als letzte Zeile hinzu
+    data.push(sendApiHost);
 
     // Verbinde alle Zeilen zu einem einzigen String mit Zeilenumbrüchen
     const formattedData = data.join("\n");
@@ -614,39 +647,152 @@ function saveData() {
 			}
 		}
 
+////////////////////////////////////
+function saveData() {
+    const rows = Array.from(document.querySelectorAll("#dataTable tbody tr"));
+
+    // Generiere die Datenzeilen und entferne das letzte Komma, falls vorhanden
+    const data = rows.map(row => {
+        return Array.from(row.querySelectorAll("input, select"))
+            .map(input => input.value)
+            .join(",")
+            .replace(/,$/, ""); // Entferne das letzte Komma
+    });
+
+    // Status der ForwardCheckbox auslesen
+    const sendToApiEnabled = document.getElementById("forwardCheckbox").checked ? "true" : "false";
+    const sendToApiRow = `sendToApi=${sendToApiEnabled}`; // Formatiere die Zeile
+
+    // API Host
+    const APIHost = document.getElementById("hostAddressInput").value;
+    const sendApiHost = `APIHost=${APIHost}`; // Formatiere die Zeile
+
+    // Füge den Status und API Host als letzte Zeilen hinzu
+    data.push(sendToApiRow);
+    data.push(sendApiHost);
+
+    // Verbinde alle Zeilen zu einem einzigen String mit Zeilenumbrüchen
+    const formattedData = data.join("\n");
+
+    // Füge "data=" vor den Nutzdaten hinzu
+    const payload = `data=${formattedData}`;
+
+    console.log("Saved Data:", payload);
+
+    // Sende die Daten an den Server
+    fetch("/save", {
+        method: "POST", // Verwende POST-Methode
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded", // Setze den Content-Type
+        },
+        body: payload, // Alle Zeilen als eine Payload
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.text(); // Optional: Verarbeite die Serverantwort
+        })
+        .then(result => {
+            console.log("Server Response:", result);
+            logMessage("Data saved successfully!");
+        })
+        .catch(error => {
+            console.error("Error saving data:", error);
+            logMessage(`Error saving data: ${error.message}`);
+        });
+}
+
+function logMessage(message) {
+    console.log(message);
+}
+
+// Direktaufruf für BLE
+function sendBLEData() {
+    logMessage("Direct Call (BLE) initiated...");
+
+    // Werte aus den Eingabefeldern abrufen
+    const modifier = document.getElementById('BLEprotocolInput').value;
+    let keycode = document.getElementById('keycodeInput').value;
+    const repeat = document.getElementById('repeatBLE').value;
+
+    // Konvertiere keycode zu Kleinbuchstaben oder setze "None" wenn leer
+    keycode = keycode ? keycode.toLowerCase() : "None";
+
+    // Überprüfen, ob alle Felder ausgefüllt sind
+    if (!modifier || !keycode || !repeat) {
+        alert('Bitte füllen Sie alle Felder aus!');
+        return; // Verhindert das Senden der Anfrage, falls ein Feld fehlt
+    }
+
+    // URL-Parameter erstellen
+    const params = new URLSearchParams({
+        modifier: modifier,
+        keycode: keycode,
+        isRepeat: repeat === 'true' ? 'true' : 'false' // Boolean in String umwandeln
+    });
+
+    // Fetch-Aufruf mit URL-Parametern
+    fetch('/sendBLE', {
+        method: 'POST', // Methode muss POST sein
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: params.toString() // URL-kodierte Formulardaten
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('HTTP error! status: ' + response.status);
+        }
+        return response.text(); // Text-Antwort des ESP lesen
+    })
+    .then(result => {
+        console.log('BLE Data Sent:', result);
+    })
+    .catch(error => {
+        console.error('Error sending BLE data:', error);
+        alert('Fehler beim Senden des BLE-Befehls.');
+    });
+}
+//////////////////////////////////////////////////////////////////////////////
 	// Direktaufruf für IR
-	function sendIRData() {
+  function sendIRData() {
 		logMessage("Direct Call (IR) initiated...");
 
+		// Werte aus den Eingabefeldern holen
 		const protocol = document.getElementById('protocolInput').value;
 		const address = document.getElementById('addressInput').value;
 		const command = document.getElementById('commandInput').value;
 		const repeat = document.getElementById('repeatIR').checked;
 
+		// Überprüfen, ob alle Felder ausgefüllt sind
 		if (!protocol || !address || !command) {
 			alert('Bitte füllen Sie alle Felder aus!');
-			return;
+			return; // Verhindert das Senden der Anfrage, falls ein Feld fehlt
 		}
 
+		// URL-Parameter erstellen
 		const params = new URLSearchParams({
 			protocol: protocol,
 			address: address,
 			command: command,
-			repeats: repeat ? '0' : '1' // Assuming 0 for false and 1 for true
+			repeats: repeat ? 'true' : 'false' // Boolean in String umwandeln
 		});
+		
 
-		fetch('http://192.168.10.167/sendIR', {
-			method: 'POST',
+		// Fetch-Aufruf mit URL-Parametern
+		fetch('/sendIR', {
+			method: 'POST', // Methode muss POST sein
 			headers: {
 				'Content-Type': 'application/x-www-form-urlencoded'
 			},
-			body: params.toString()
+			body: params.toString() // URL-kodierte Formulardaten
 		})
 		.then(response => {
 			if (!response.ok) {
 				throw new Error('HTTP error! status: ' + response.status);
 			}
-			return response.text();
+			return response.text(); // Text-Antwort des ESP lesen
 		})
 		.then(result => {
 			console.log('IR Data Sent:', result);
@@ -666,10 +812,13 @@ function saveData() {
     logMessage("Direct Call (BLE) initiated...");
 
     // Werte aus den Eingabefeldern abrufen
-    const modifier = document.getElementById('modifierInput').value;
-    const keycode = document.getElementById('keycodeInput').value;
+    const modifier = document.getElementById('BLEprotocolInput').value;
+    let keycode = document.getElementById('keycodeInput').value;
     const repeat = document.getElementById('repeatBLE').value;
 
+	// Konvertiere keycode zu Kleinbuchstaben oder setze "None" wenn leer
+    keycode = keycode ? keycode.toLowerCase() : "None";
+		
     // Überprüfen, ob alle Felder ausgefüllt sind
     if (!modifier || !keycode || !repeat) {
         alert('Bitte füllen Sie alle Felder aus!');
@@ -743,7 +892,7 @@ function saveData() {
 			<td><input type="text" value="${values[10]}"></td>
 			<td><input type="text" value="${values[11]}"></td>
 			<td>${createBooleanDropdown(values[12])}</td>
-			<td><input type="text" value="${values[13]}"></td>
+			<td>${createModifierDropdown(values[13])}</td>
 			<td><input type="text" value="${values[14]}"></td>
 			<td>${createBooleanDropdown(values[15])}</td>
 			<td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>
@@ -754,49 +903,6 @@ function saveData() {
 	}
 
 	// Daten von /loadData laden
-	async function loadData() {
-		try {
-			const response = await fetch("/loadData");
-			if (!response.ok) {
-				throw new Error(`HTTP error! Status: ${response.status}`);
-			}
-
-			const data = await response.text();
-			// Trimme die Daten und filtere Leerzeilen
-			const rows = data
-				.trim()
-				.split("\n")
-				.map(row => row.trim()) // Entferne Leerzeichen vor und nach jeder Zeile
-				.filter(row => row !== ""); // Entferne leere Zeilen
-
-			let sendToApiValue = false; // Standardwert für sendToApi
-
-			rows.forEach(row => {
-				// Prüfen, ob die Zeile den sendToApi-Wert enthält
-				if (row.startsWith("sendToApi")) {
-					const value = row.split(",")[1]; // Extrahiere den Wert (True/False)
-					sendToApiValue = value === "True"; // Konvertiere zu boolean
-					return; // Überspringe diese Zeile, da sie nicht in die Tabelle eingefügt werden soll
-				}
-
-				// Füge nur die relevanten Datenzeilen in die Tabelle ein
-				addRow(row);
-			});
-
-			// Setze den sendToApi-Status
-			const sendToApiRadio = document.querySelector("input[id='sendToApiTrue']");
-			if (sendToApiRadio) {
-				sendToApiRadio.checked = sendToApiValue; // Setze den Status entsprechend
-			}
-
-			// Aktualisiere alle Zeilen nach dem Laden der Daten
-			updateAllRows();
-
-			logMessage("Data loaded successfully!");
-		} catch (error) {
-			logMessage(`Error loading data: ${error.message}`);
-		}
-	}
 
     // Initialisierung
     window.onload = function () {
@@ -805,4 +911,6 @@ function saveData() {
     };
   </script>
 	</body>
-</html>
+</html>)rawliteral";
+
+#endif // WEBPAGE_H
