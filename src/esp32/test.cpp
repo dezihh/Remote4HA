@@ -8,6 +8,7 @@
 //#include <BleKeyboard.h>
 #include <Preferences.h> // Für das Speichern und Laden von Daten
 #include <nvs_flash.h>
+bool debug = false;
 
 // #include <HIDTypes.h>
 // #include <HIDKeyboardTypes.h>
@@ -44,6 +45,21 @@ NimBLECharacteristic* input;
 bool connected = false;
 NimBLECharacteristic* consumerInput;
 
+struct IRrcv
+{ // Eingang IR
+    decode_type_t protocol;
+    uint8_t code;
+    uint32_t address;
+    bool isRepeat;
+};
+
+struct USBRecv
+{ // Eingang USB
+    uint8_t modifier;
+    uint8_t command;
+    bool keyLong;
+};
+
 class MyCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer* pServer) {
         connected = true;
@@ -60,7 +76,6 @@ class MyCallbacks : public NimBLEServerCallbacks {
 
 
 void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat);
-void sendBLE(uint16_t modifier, uint16_t keycode, bool longPress);
 void handleSendBle(AsyncWebServerRequest *request);
 void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol);
 void sendHttpToAPI(String provider, String data);
@@ -69,6 +84,9 @@ void handleSaveRequest(AsyncWebServerRequest *request);
 void saveRoutesToNVS();
 void handleLoadRequest(AsyncWebServerRequest *request);
 void loadRoutesFromNVS();
+void route(String source, IRrcv irData);
+void route(String source, USBRecv usbData);
+
 
 
 // IR: Pin Definitionen
@@ -92,20 +110,7 @@ AsyncWebServer server(80);
 AsyncEventSource events("/events");
 WiFiClientSecure client; // Persistent HTTP Client
 
-struct IRrcv
-{ // Eingang IR
-    decode_type_t protocol;
-    uint8_t code;
-    uint32_t address;
-    bool isRepeat;
-};
 
-struct USBRecv
-{ // Eingang USB
-    uint8_t modifier;
-    uint8_t command;
-    bool keyLong;
-};
 
 // Routingstruktur mit Zielwerten für Protokoll, Adresse, Command und Modifier
 
@@ -208,7 +213,7 @@ void IRRecvTask(void *pvParameters) {
             data.code = IrReceiver.decodedIRData.command;
             data.isRepeat = (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) != 0;
             String protName = getProtocolString(data.protocol);
-            // ANCHOR route("IR", data);
+            route("IR", data);
             IrReceiver.resume();
             String rcvInfo = "Received IR - Protocol: " +
                              protName + "(" + String(data.protocol) + ")" +
@@ -348,7 +353,8 @@ void initBLE(String serverName)
     Serial.println("Advertising started!");
 }
 
-void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress = false) {
+//void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress = false) {
+void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress) {
     uint16_t duration = longPress ? 555 : 100; // 555 ms für langen Tastendruck, 100 ms für kurzen Tastendruck
     if (connected) {
         uint8_t report[8] = {0};
@@ -370,9 +376,6 @@ void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress = false) {
     } else {
          Serial.println("BLE Keyboad not connected, discarding input."); 
     }
-
-    
-
 }
 
 // HTTP Endpunkt Handler für BLE
@@ -400,11 +403,13 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
         request->send(400, "text/plain", "No data= provided");
         return;
     }
+    String rawData = request->getParam("data", true)->value();
 
     // Retrieve the data
-    String rawData = request->getParam("data", true)->value();
-    Serial.println("Received data:");
-    Serial.println(rawData);
+    if (debug){
+        Serial.println("Received data:");
+        Serial.println(rawData);
+    }
 
     // Ensure the data ends with a newline character
     if (!rawData.endsWith("\n")) {
@@ -416,62 +421,85 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
     int startIndex = 0;
     int endIndex = rawData.indexOf("\n");
 
-    // Lokale Deklaration der forward-Variable
-    //bool forward = false;
-
-    // Process each line of input
-    while (endIndex != -1)
-    {
+    while (endIndex != -1) {
         String row = rawData.substring(startIndex, endIndex);
 
         if (row.startsWith("APIHost=")) {
             serverURL = row.substring(String("APIHost=").length());
             serverURL.trim();
-            Serial.printf("Parsed hostURL: %s\n", serverURL.c_str());
+            if (debug){Serial.printf("Parsed hostURL: %s\n", serverURL.c_str());}
         } else if (row.startsWith("sendToApi=")) {
             String forwardStr = row.substring(String("sendToApi=").length());
             forwardStr.trim();
-            Serial.printf("Parsed forwardStr: %s\n", forwardStr.c_str());
+            if (debug){Serial.printf("Parsed forwardStr: %s\n", forwardStr.c_str());}
             forward = (forwardStr == "true");
-            //forward = true;
-            Serial.printf("Parsed forward: %s\n", forward ? "true" : "false");
+            if(debug){Serial.printf("Parsed forward: %s\n", forward ? "true" : "false");}
         } else if (routeCount < MAX_ROUTES) {
+            // Split the row into individual components
+            int componentIndex = 0;
+            int componentStart = 0;
+            int componentEnd = row.indexOf(',');
 
-            // Temporary buffers for parsing
-            char sourceBuffer[16];
-            char actionBuffer[32];
+            while (componentEnd != -1) {
+                String component = row.substring(componentStart, componentEnd);
+                component.trim();
 
-            // Parse the current row
-            sscanf(row.c_str(), "%15[^,],%hhu,%hhu,%u,%d,%hhu,%hhu,%d,%31[^,],%hhu,%hhu,%u,%d,%hhu,%hhu,%d",
-                   sourceBuffer,
-                   &routeTable[routeCount].protocol,
-                   &routeTable[routeCount].code,
-                   &routeTable[routeCount].address,
-                   &routeTable[routeCount].isRepeat,
-                   &routeTable[routeCount].modifier,
-                   &routeTable[routeCount].command,
-                   &routeTable[routeCount].keyLong,
-                   actionBuffer,
-                   &routeTable[routeCount].oIRprot,
-                   &routeTable[routeCount].oIRcode,
-                   &routeTable[routeCount].oIRaddress,
-                   &routeTable[routeCount].oIRisRepeat,
-                   &routeTable[routeCount].oBleMod,
-                   &routeTable[routeCount].oBleCode,
-                   &routeTable[routeCount].oRBleRepeat);
+                switch (componentIndex) {
+                    case 0:
+                        routeTable[routeCount].source = component;
+                        break;
+                        // ANCHOR-FIX
+                    case 1:
+                        routeTable[routeCount].protocol = static_cast<decode_type_t>(strtol(component.c_str(), NULL, 16));
+                        break;
+                    case 2:
+                        routeTable[routeCount].code = strtol(component.c_str(), NULL, 16);
+                        break;
+                    case 3:
+                        routeTable[routeCount].address = strtol(component.c_str(), NULL, 16);
+                        break;
+                    case 4:
+                        routeTable[routeCount].isRepeat = component.toInt();
+                        break;
+                    case 5:
+                        routeTable[routeCount].modifier = strtol(component.c_str(), NULL, 16);
+                        break;
+                    case 6:
+                        routeTable[routeCount].command = strtol(component.c_str(), NULL, 16);
+                        break;
+                    case 7:
+                        routeTable[routeCount].keyLong = component.toInt();
+                        break;
+                    case 8:
+                        routeTable[routeCount].actionFuncName = component;
+                        break;
+                    case 9:
+                        routeTable[routeCount].oIRprot = static_cast<decode_type_t>(strtol(component.c_str(), NULL, 16));
+                        break;
+                    case 10:
+                        routeTable[routeCount].oIRcode = strtol(component.c_str(), NULL, 16);
+                        break;
+                    case 11:
+                        routeTable[routeCount].oIRaddress = strtol(component.c_str(), NULL, 16);
+                        break;
+                    case 12:
+                        routeTable[routeCount].oIRisRepeat = component.toInt();
+                        break;
+                    case 13:
+                        routeTable[routeCount].oBleMod = strtol(component.c_str(), NULL, 16);
+                        break;
+                    case 14:
+                        routeTable[routeCount].oBleCode = strtol(component.c_str(), NULL, 16);
+                        break;
+                    case 15:
+                        routeTable[routeCount].oRBleRepeat = component.toInt();
+                        break;
+                }
 
-            // Assign parsed values to String fields
-            routeTable[routeCount].source = String(sourceBuffer);
-            routeTable[routeCount].actionFuncName = String(actionBuffer);
-
-            // Debug output for each parsed route
-            Serial.printf("Route %d: %s Protocol: %d Code: %d Action: %s\n",
-                          routeCount,
-                          routeTable[routeCount].source.c_str(),
-                          routeTable[routeCount].protocol,
-                          routeTable[routeCount].code,
-                          routeTable[routeCount].actionFuncName.c_str());
-
+                componentIndex++;
+                componentStart = componentEnd + 1;
+                componentEnd = row.indexOf(',', componentStart);
+            }
             routeCount++;
         }
 
@@ -479,16 +507,11 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
         endIndex = rawData.indexOf("\n", startIndex);
     }
 
-    // Debug output for the total number of routes
-    Serial.printf("Total routes parsed: %d\n", routeCount);
-
     // Save all parsed routes to NVS
-    //FIXME - NVS Speichern auskommentiert
     saveRoutesToNVS();
 
     // Debug output for hostAddress and forward
-    Serial.printf("Saved ServerURL: %s\n", serverURL.c_str());
-    Serial.printf("Saved forward: %s\n", forward ? "true" : "false");
+    if (debug){Serial.printf("Saved ServerURL: %s\n", serverURL.c_str());}
 
     // Send success response
     request->send(200, "text/plain", "Routes and settings saved successfully");
@@ -502,23 +525,23 @@ void handleLoadRequest(AsyncWebServerRequest *request)
     {
         char buffer[256];
         snprintf(buffer, sizeof(buffer),
-                 "%s,%u,%u,%u,%d,%u,%u,%d,%s,%u,%u,%u,%d,%u,%u,%d\n",
-                 routeTable[i].source,
-                 routeTable[i].protocol,
-                 routeTable[i].code,
-                 routeTable[i].address,
-                 routeTable[i].isRepeat,
-                 routeTable[i].modifier,
-                 routeTable[i].command,
-                 routeTable[i].keyLong,
-                 routeTable[i].actionFuncName,
-                 routeTable[i].oIRprot,
-                 routeTable[i].oIRcode,
-                 routeTable[i].oIRaddress,
-                 routeTable[i].oIRisRepeat,
-                 routeTable[i].oBleMod,
-                 routeTable[i].oBleCode,
-                 routeTable[i].oRBleRepeat);
+             "%s,0x%X,0x%X,0x%X,%d,0x%X,0x%X,%d,%s,0x%X,0x%X,0x%X,%d,0x%X,0x%X,%d\n",
+             routeTable[i].source.c_str(),
+             routeTable[i].protocol,
+             routeTable[i].code,
+             routeTable[i].address,
+             routeTable[i].isRepeat,
+             routeTable[i].modifier,
+             routeTable[i].command,
+             routeTable[i].keyLong,
+             routeTable[i].actionFuncName.c_str(),
+             routeTable[i].oIRprot,
+             routeTable[i].oIRcode,
+             routeTable[i].oIRaddress,
+             routeTable[i].oIRisRepeat,
+             routeTable[i].oBleMod,
+             routeTable[i].oBleCode,
+             routeTable[i].oRBleRepeat);
         responseData += buffer;
     }
 
@@ -533,43 +556,136 @@ void handleLoadRequest(AsyncWebServerRequest *request)
 
     request->send(200, "text/plain", responseData);
 }
-
-void loadRoutesFromNVS()
+///////////////////////// Routes
+void route(String source, IRrcv irData)
 {
-    Preferences preferences;
-    if (!preferences.begin("routeData", true))
+    for (int i = 0; i < sizeof(routeTable) / sizeof(Route); i++)
     {
+        Route &route = routeTable[i];
+
+        // Überprüfung für IR-Daten
+        if (source == "IR" &&
+            irData.protocol == route.protocol &&
+            irData.code == route.code &&
+            irData.address == route.address)
+        {
+            // Prüfbedingung für Repeat
+            bool repeatCondition = (route.isRepeat == 2) ||
+                                   (route.isRepeat == 1 && irData.isRepeat) ||
+                                   (route.isRepeat == 0 && !irData.isRepeat);
+
+            if (repeatCondition)
+            {
+                // Aktion ausführen basierend auf actionFuncName
+                if (route.actionFuncName == "sendIR")
+                {
+                    bool finalRepeat = (route.isRepeat == 2) ? irData.isRepeat : route.oIRisRepeat;
+                    events.send("Router: IR command send");
+                    Serial.println("sendIR: Matched, Resend IR Data");
+                    //sendIR(route.oIRaddress, route.oIRcode, finalRepeat, route.oIRprot);
+                }
+                /*else if (route.actionFuncName == "sendBLE")
+                {
+                    bool finalRepeat = (route.isRepeat == 2) ? irData.isRepeat : route.oRBleRepeat;
+                    Serial.println("sendIR: Matched, Sent BLE Data");
+                    //sendBle(route.oBleMod, route.oBleCode, finalRepeat);
+                    // ANCHOR-FIX
+                    sendBle(uint8_t(route.oBleMod), uint8_t(route.oBleCode), bool(finalRepeat));
+
+                }*/
+                else if (route.actionFuncName == "sendHttpToAPI")
+                {
+                    String data = "protocol=" + String(irData.protocol) +
+                                  "&code=" + String(irData.code) +
+                                  "&address=" + String(irData.address) +
+                                  "&isRepeat=" + String(irData.isRepeat);
+                    Serial.println("sendIR: Matched, Sent API Data");
+                    sendHttpToAPI(source, data);
+                }
+                return; // Aktion ausgeführt, keine weitere Prüfung nötig
+            }
+        }
+    }
+
+    // Kein Match gefunden, Standardaktion
+    String data = "protocol=" + String(irData.protocol) +
+                  "&code=" + String(irData.code) +
+                  "&address=" + String(irData.address) +
+                  "&isRepeat=" + String(irData.isRepeat);
+    sendHttpToAPI(source, data);
+}
+
+void route(String source, USBRecv usbData)
+{
+    for (int i = 0; i < sizeof(routeTable) / sizeof(Route); i++)
+    {
+        Route &route = routeTable[i];
+
+        // Überprüfung für USB-Daten
+        if (source == "IF" &&
+            usbData.modifier == route.modifier &&
+            usbData.command == route.command)
+        {
+
+            // Prüfbedingung für keyLong
+            bool keyLongCondition = (route.keyLong == 2) ||
+                                    (route.keyLong == 1 && usbData.keyLong) ||
+                                    (route.keyLong == 0 && !usbData.keyLong);
+
+            if (keyLongCondition)
+            {
+                // Aktion ausführen basierend auf actionFuncName
+                if (route.actionFuncName == "sendIR")
+                {
+                    bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oIRisRepeat;
+                    Serial.println("USB: Matched, Sent IR Data");
+                    sendIR(route.oIRaddress, route.oIRcode, finalRepeat, route.oIRprot);
+                }
+                else if (route.actionFuncName == "sendBLE")
+                {
+                    bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oRBleRepeat;
+                    Serial.println("USB: Matched, Sent BLE Data");
+                    sendBle(route.oBleMod, route.oBleCode, finalRepeat);
+                }
+                else if (route.actionFuncName == "sendHttpToAPI")
+                {
+                    String data = "modifier=" + String(usbData.modifier) +
+                                  "&command=" + String(usbData.command) +
+                                  "&keyLong=" + String(usbData.keyLong);
+                    Serial.println("USB: Matched, Sent API Data");
+                    sendHttpToAPI(source, data);
+                }
+                return; // Aktion ausgeführt, keine weitere Prüfung nötig
+            }
+        }
+    }
+
+    // Kein Match gefunden, Standardaktion
+    String data = "modifier=" + String(usbData.modifier) +
+                  "&command=" + String(usbData.command) +
+                  "&keyLong=" + String(usbData.keyLong);
+    Serial.println("None: No Match found");
+    sendHttpToAPI(source, data);
+}
+
+void loadRoutesFromNVS() {
+    if (!preferences.begin("routeData", true)) {
         Serial.println("Failed to initialize NVS for reading");
         return;
     }
 
     routeCount = preferences.getInt("routeCount", 0);
-    if (routeCount > MAX_ROUTES)
-    {
+    Serial.printf("Loaded routeCount: %d\n", routeCount);
+
+    if (routeCount > MAX_ROUTES) {
         Serial.println("Route count exceeds maximum capacity");
         preferences.end();
         return;
     }
 
-    for (int i = 0; i < routeCount; i++)
-    {
-        String key = "route" + String(i);
-        if (preferences.getBytesLength(key.c_str()) == sizeof(Route))
-        {
-            preferences.getBytes(key.c_str(), &routeTable[i], sizeof(Route));
-        }
-        else
-        {
-            Serial.println("Route data size mismatch for key: " + key);
-        }
-    }
-
-    // Laden von hostAddress und forward
+    // Laden von serverURL und forward
     serverURL = preferences.getString("serverURL", "");
     forward = preferences.getBool("forward", false);
-
-    Serial.print("ServerURL: "); Serial.println(serverURL);
-    Serial.print("Forward state: "); Serial.println(forward ? "true" : "false");
 
     preferences.end();
     Serial.println("Routes and settings loaded from NVS.");
@@ -585,15 +701,7 @@ void saveRoutesToNVS()
     }
 
     preferences.putInt("routeCount", routeCount);
-    for (int i = 0; i < routeCount; i++)
-    {
-        String key = "route" + String(i);
-        preferences.putBytes(key.c_str(), &routeTable[i], sizeof(Route));
-    }
-
-    // Speichern von hostAddress und forward
     preferences.putString("serverURL", serverURL);
-    Serial.printf("Saved forwardin NV-Ram: %s\n", forward ? "true" : "false");
     preferences.putBool("forward", forward);
 
     preferences.end();
