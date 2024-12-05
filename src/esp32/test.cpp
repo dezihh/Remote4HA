@@ -5,18 +5,11 @@
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include <NimBLECharacteristic.h>
-//#include <BleKeyboard.h>
-#include <Preferences.h> // Für das Speichern und Laden von Daten
+#include <Preferences.h> 
 #include <nvs_flash.h>
-bool debug = false;
-
-// #include <HIDTypes.h>
-// #include <HIDKeyboardTypes.h>
-// #include <WebServer.h>
-// #include <ESPmDNS.h>
-// #define USE_USB
-#ifdef USE_USB
-#include "EspUsbHost.h"
+#include <ESPmDNS.h>
+#ifdef BOARD_ESP32_DEVKITC
+    #include "EspUsbHost.h"
 #endif
 #define MAX_ROUTES 100
 #include "reportMap.h"
@@ -24,26 +17,32 @@ bool debug = false;
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 
+WiFiClient client; // Verwenden Sie WiFiClient
+HTTPClient http; // Globaler HTTPClient
+
 // USB Definitions
 bool usb_connected = false;
-unsigned long keyPressStartTime = 0;
+unsigned long keyPressStartTime = 550;
 bool keyPressed = false;
 int longKey = 500;
-//bool forward = false;
 
-// BLE HID service variables
-// BLE HID service variables
-/*BLEHIDDevice* hid;
-BLECharacteristic* input;
-BLECharacteristic* output;
-BleKeyboard bleKeyboard("ESP32 Keyboard", "DeZi", 100);*/
-//BleKeyboard bleKeyboard;
-//BleKeyboard bleKeyboard;
+bool debug = false;
+
 bool is_ble_connected = false;
 NimBLEHIDDevice* hid;
 NimBLECharacteristic* input;
 bool connected = false;
 NimBLECharacteristic* consumerInput;
+
+// IR: Pin Definitionen
+#ifdef BOARD_ESP32_DEVKITC
+    const int RECV_PIN = 2; // (15)(2) IR Empfänger Pin
+    const int SEND_PIN = 3;  // (4)(3)IR Sender Pin
+#else
+    const int RECV_PIN = 15; // (15)(2) IR Empfänger Pin
+    const int SEND_PIN = 4;  // (4)(3)IR Sender Pin
+#endif
+#define NO_LED_FEEDBACK_CODE
 
 struct IRrcv
 { // Eingang IR
@@ -73,9 +72,7 @@ class MyCallbacks : public NimBLEServerCallbacks {
     }
 };
 
-
-
-void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat);
+void sendBLE(uint8_t modifier, uint8_t keycode, bool isRepeat);
 void handleSendBle(AsyncWebServerRequest *request);
 void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol);
 void sendHttpToAPI(String provider, String data);
@@ -88,12 +85,6 @@ void route(String source, IRrcv irData);
 void route(String source, USBRecv usbData);
 
 
-
-// IR: Pin Definitionen
-const int RECV_PIN = 15; // (15)(2) IR Empfänger Pin
-const int SEND_PIN = 4;  // (4)(3)IR Sender Pin
-#define NO_LED_FEEDBACK_CODE
-
 Preferences preferences;
 bool sendDataDefaultToApi = false;
 bool forward;
@@ -101,19 +92,12 @@ String serverURL;
 // Task-Handles
 TaskHandle_t irReadTaskHandle = NULL;
 
-// Common variables
-//const char *serverURL = "http://192.168.10.3:8125/api/webhook/myid";
-
 // Webserver auf Port 80
 AsyncWebServer server(80);
 // Event-Handler für SSE
 AsyncEventSource events("/events");
-WiFiClientSecure client; // Persistent HTTP Client
-
-
 
 // Routingstruktur mit Zielwerten für Protokoll, Adresse, Command und Modifier
-
 struct Route
 {
     String source;          // IR, IF
@@ -160,22 +144,24 @@ void wifiTask() {
 
 // Forward Data to Server
 void sendHttpToAPI(String provider, String data) {
-    static HTTPClient http;
     if (!http.connected()) {
-        http.begin(client, serverURL);
+        if (!http.begin(client, serverURL)) { // Verwenden Sie WiFiClient
+            Serial.println("Failed to initialize HTTP client");
+            return;
+        }
         http.addHeader("Content-Type", "application/x-www-form-urlencoded");
     }
 
     String payload = "provider=" + provider + "&data=" + data;
-    int httpResponseCode = http.POST(payload);
+    if (debug){Serial.println("Sending data to API: " + payload);}
 
+    int httpResponseCode = http.POST(payload);
     if (httpResponseCode > 0) {
-        Serial.printf("Server Response: %d\n", httpResponseCode);
+        if (debug){Serial.printf("Server Response: %d\n", httpResponseCode);}
     } else {
         Serial.printf("Error in sending request: %s\n", http.errorToString(httpResponseCode).c_str());
     }
 }
-
 
 void webserver() {
     // SSE-Endpunkt registrieren
@@ -360,6 +346,8 @@ void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress) {
         uint8_t report[8] = {0};
         report[0] = modifier; // Modifier (e.g., Ctrl, Shift)
         report[2] = keycode;  // Keycode
+                Serial.printf("Sending HID Report: Modifier: 0x%02X, Keycode: 0x%02X\n", modifier, keycode);
+
         input->setValue(report, sizeof(report));
         input->notify();
         delay(duration);
@@ -375,6 +363,7 @@ void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress) {
         Serial.println(sendInfo);
     } else {
          Serial.println("BLE Keyboad not connected, discarding input."); 
+         events.send("BLE Keyboard not connected, discarding input.");
     }
 }
 
@@ -582,17 +571,17 @@ void route(String source, IRrcv irData)
                     bool finalRepeat = (route.isRepeat == 2) ? irData.isRepeat : route.oIRisRepeat;
                     events.send("Router: IR command send");
                     Serial.println("sendIR: Matched, Resend IR Data");
-                    //sendIR(route.oIRaddress, route.oIRcode, finalRepeat, route.oIRprot);
+                    sendIR(route.oIRaddress, route.oIRcode, finalRepeat, route.oIRprot);
                 }
-                /*else if (route.actionFuncName == "sendBLE")
+                else if (route.actionFuncName == "sendBLE")
                 {
                     bool finalRepeat = (route.isRepeat == 2) ? irData.isRepeat : route.oRBleRepeat;
                     Serial.println("sendIR: Matched, Sent BLE Data");
-                    //sendBle(route.oBleMod, route.oBleCode, finalRepeat);
+                    sendBLE(route.oBleMod, route.oBleCode, finalRepeat);
                     // ANCHOR-FIX
-                    sendBle(uint8_t(route.oBleMod), uint8_t(route.oBleCode), bool(finalRepeat));
+                    //sendBle(uint8_t(route.oBleMod), uint8_t(route.oBleCode), bool(finalRepeat));
 
-                }*/
+                }
                 else if (route.actionFuncName == "sendHttpToAPI")
                 {
                     String data = "protocol=" + String(irData.protocol) +
@@ -600,6 +589,8 @@ void route(String source, IRrcv irData)
                                   "&address=" + String(irData.address) +
                                   "&isRepeat=" + String(irData.isRepeat);
                     Serial.println("sendIR: Matched, Sent API Data");
+                    events.send("Route matched: Sending IR to HTTP Endpoint");
+                    if (debug){Serial.println(data);}
                     sendHttpToAPI(source, data);
                 }
                 return; // Aktion ausgeführt, keine weitere Prüfung nötig
@@ -612,7 +603,17 @@ void route(String source, IRrcv irData)
                   "&code=" + String(irData.code) +
                   "&address=" + String(irData.address) +
                   "&isRepeat=" + String(irData.isRepeat);
-    sendHttpToAPI(source, data);
+    
+    if (irData.protocol != 0) {
+        if (forward){
+            sendHttpToAPI(source, data);
+            events.send("No definition: Send IR to default HTTP URL");
+            Serial.println("Sending to default URL");
+            }
+        } else { 
+        Serial.println("Not sending Unknown");  
+         }
+
 }
 
 void route(String source, USBRecv usbData)
@@ -645,14 +646,14 @@ void route(String source, USBRecv usbData)
                 {
                     bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oRBleRepeat;
                     Serial.println("USB: Matched, Sent BLE Data");
-                    sendBle(route.oBleMod, route.oBleCode, finalRepeat);
+                    sendBLE(route.oBleMod, route.oBleCode, finalRepeat);
                 }
                 else if (route.actionFuncName == "sendHttpToAPI")
                 {
                     String data = "modifier=" + String(usbData.modifier) +
                                   "&command=" + String(usbData.command) +
                                   "&keyLong=" + String(usbData.keyLong);
-                    Serial.println("USB: Matched, Sent API Data");
+                    Serial.println("USB: Matched, Sent Data to API");
                     sendHttpToAPI(source, data);
                 }
                 return; // Aktion ausgeführt, keine weitere Prüfung nötig
@@ -713,6 +714,7 @@ void setup() {
     Serial.print("Free Heap: ");
     Serial.println(ESP.getFreeHeap());
     wifiTask();
+    loadRoutesFromNVS();
     webserver();
     initBLE("BLE IR Router");
     Serial.println("Advertising started!");
@@ -734,7 +736,7 @@ void setup() {
     BaseType_t result = xTaskCreatePinnedToCore(
             IRRecvTask,        // Task-Funktion
             "IRRecvTask",      // Name der Task
-            2048,              // Stapelgröße in Wörtern
+            8192,              // Stapelgröße in Wörtern
             NULL,              // Parameter für die Task
             1,                 // Priorität der Task
             NULL,              // Task-Handle
