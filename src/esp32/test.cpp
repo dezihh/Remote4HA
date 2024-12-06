@@ -2,15 +2,16 @@
 #include <WiFiManager.h>
 #include <ESPAsyncWebServer.h>
 #include "webpage.h"
+#ifdef BOARD_ESP32_DEVKITC
+    #include "EspUsbHost.h"
+#endif
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include <NimBLECharacteristic.h>
 #include <Preferences.h> 
 #include <nvs_flash.h>
 #include <ESPmDNS.h>
-#ifdef BOARD_ESP32_DEVKITC
-    #include "EspUsbHost.h"
-#endif
+
 #define MAX_ROUTES 100
 #include "reportMap.h"
 #include <IRremote.hpp>
@@ -36,7 +37,7 @@ NimBLECharacteristic* consumerInput;
 
 // IR: Pin Definitionen
 #ifdef BOARD_ESP32_DEVKITC
-    const int RECV_PIN = 2; // (15)(2) IR Empfänger Pin
+    const int RECV_PIN = 10; // (15)(2) IR Empfänger Pin
     const int SEND_PIN = 3;  // (4)(3)IR Sender Pin
 #else
     const int RECV_PIN = 15; // (15)(2) IR Empfänger Pin
@@ -71,6 +72,37 @@ class MyCallbacks : public NimBLEServerCallbacks {
         NimBLEDevice::startAdvertising();
     }
 };
+
+#ifdef BOARD_ESP32_DEVKITC
+class MyEspUsbHost : public EspUsbHost {
+public:
+    bool usb_connected = false;
+
+    void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
+        usb_connected = true;
+    
+        if (!keyPressed) {  // Taste wurde gerade gedrückt
+            keyPressStartTime = millis();  // Speichere den Zeitpunkt des Tastendrucks
+            keyPressed = true;  // Setze den Status auf "Taste gedrückt"
+        } else {  // Taste wurde losgelassen
+            // Berechne die gedrückte Zeit
+            unsigned long duration = millis() - keyPressStartTime;  // Zeitdauer in Millisekunden
+            String keyEntry = String("Key: ") + String(keycode, HEX) + 
+                              " (ASCII:" + String((char)ascii) + 
+                              ") Modifier: " + String(modifier, HEX) + 
+                              " Duration: " + String(duration) + " ms\n";
+            Serial.printf("%s", keyEntry.c_str());
+
+            // Rufe die neue Funktion zum Senden des BLE-Reports auf
+            //sendBleReport(modifier, keycode);
+
+            // Reset der Statusvariablen
+            keyPressed = false;  // Setze den Status auf "Taste nicht gedrückt"
+        }
+     }
+};
+MyEspUsbHost usbHost;
+#endif
 
 void sendBLE(uint8_t modifier, uint8_t keycode, bool isRepeat);
 void handleSendBle(AsyncWebServerRequest *request);
@@ -176,7 +208,9 @@ void webserver() {
     server.begin();
 }
 
-void IRRecvTask(void *pvParameters) {
+//void IRRecvTask(void *pvParameters) {
+    void IRRecvTask() {
+
     IrReceiver.begin(RECV_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
     Serial.print(F("Ready to receive IR signals of protocols: "));
     String protocol = []{ String output; class StringPrinter : public Print 
@@ -718,6 +752,9 @@ void setup() {
     webserver();
     initBLE("BLE IR Router");
     Serial.println("Advertising started!");
+    #ifdef BOARD_ESP32_DEVKITC
+        usbHost.begin();
+    #endif
     // SSE-Endpunkt registrieren
     server.addHandler(&events);
       // HTTP-Endpunkte
@@ -731,9 +768,9 @@ void setup() {
             { handleLoadRequest(request); });
     server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request)
             { handleSaveRequest(request); });
-    
+    IRRecvTask();
         // Erstelle eine neue FreeRTOS-Task für die IR-Empfänger-Logik
-    BaseType_t result = xTaskCreatePinnedToCore(
+/*     BaseType_t result = xTaskCreatePinnedToCore(
             IRRecvTask,        // Task-Funktion
             "IRRecvTask",      // Name der Task
             8192,              // Stapelgröße in Wörtern
@@ -741,7 +778,7 @@ void setup() {
             1,                 // Priorität der Task
             NULL,              // Task-Handle
             1                  // Kern, auf dem die Task ausgeführt werden soll
-        );
+        ); */
 
 
 
@@ -752,6 +789,9 @@ unsigned long previousMillis = 0;
 const long interval = 1000; // Intervall (1 Sekunde) */
 
 void loop() {
+    #ifdef BOARD_ESP32_DEVKITC
+        usbHost.task();
+    #endif
 /* 
         if (connected) {
         uint8_t keycode[8] = {0};
