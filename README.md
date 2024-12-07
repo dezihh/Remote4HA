@@ -36,8 +36,17 @@ modprobe cp341<br>
 
 <br><b>BLE</b>
 <br>https://github.com/blackketter/ESP32-BLE-Combo/tree/master
-<br<kleiner: https://github.com/T-vK/ESP32-BLE-Keyboard/blob/master/BleKeyboard.h
+<br>kleiner: https://github.com/T-vK/ESP32-BLE-Keyboard/blob/master/BleKeyboard.h
 <br>commands-table: https://github.com/asterics/esp32_mouse_keyboard
+
+<br><b>Filesystem</b>
+<br>Partition Tables: https://github.com/espressif/arduino-esp32/tree/master/tools/partitions
+<br>ESP Readme: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/partition-tables.html
+<br>Blog: https://community.platformio.org/t/platformio-esp32-partitions/33792
+
+<br><b>ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1</b>
+<br> Memory: 384kb
+<br> Flash: 16MB und 8MB PSRAM
 
 
 
