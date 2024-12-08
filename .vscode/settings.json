@@ -1,6 +1,9 @@
 {
     "remote.autoForwardPortsFallback": 0,
     "files.associations": {
-        "*.cpp_pre": "cpp"
+        "*.cpp_pre": "cpp",
+        "array": "cpp",
+        "string": "cpp",
+        "string_view": "cpp"
     }
 }
