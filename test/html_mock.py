@@ -66,7 +66,7 @@ def send_ir():
 
 
 ## Direct call BLE
-# curl -X POST -d "modifier=0x0&keycode=0x44&isRepeat=0" http://127.0.0.1:5000/sendIR
+# curl -X POST -d 'modifier=0x0&keycode=0x44&isRepeat=0' http://127.0.0.1:5000/sendBLE
 @app.route('/sendBLE', methods=['POST'])
 def send_ble():
     modifier = request.form.get('modifier')
