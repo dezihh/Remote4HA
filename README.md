@@ -38,6 +38,8 @@ modprobe cp341<br>
 <br>https://github.com/blackketter/ESP32-BLE-Combo/tree/master
 <br>kleiner: https://github.com/T-vK/ESP32-BLE-Keyboard/blob/master/BleKeyboard.h
 <br>commands-table: https://github.com/asterics/esp32_mouse_keyboard
+<br> BLE Advertising Article https://stackoverflow.com/questions/69921353/how-can-i-clone-a-non-paired-ble-signal-from-a-remote-to-trigger-a-device
+<br> Google Keycodes https://developer.android.com/reference/android/view/KeyEvent
 
 <br><b>Filesystem</b>
 <br>Partition Tables: https://github.com/espressif/arduino-esp32/tree/master/tools/partitions
