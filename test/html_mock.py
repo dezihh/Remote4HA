@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 
 from flask import Flask, jsonify, request, render_template, Response
-jsonify, request, render_template
-from datetime import datetime
-
-from flask import Flask, render_template
 from flask_sock import Sock
-import threading  # Add this import
+from datetime import datetime
+import threading
 import time
 import json
 import re
