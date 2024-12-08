@@ -2,22 +2,15 @@
 #include <WiFiManager.h>
 #include <ESPAsyncWebServer.h>
 #include "webpage.h"
+#ifdef BOARD_ESP32_DEVKITC
+    #include "EspUsbHost.h"
+#endif
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include <NimBLECharacteristic.h>
-//#include <BleKeyboard.h>
-#include <Preferences.h> // Für das Speichern und Laden von Daten
+#include <Preferences.h> 
 #include <nvs_flash.h>
-bool debug = false;
-
-// #include <HIDTypes.h>
-// #include <HIDKeyboardTypes.h>
-// #include <WebServer.h>
-// #include <ESPmDNS.h>
-// #define USE_USB
-#ifdef USE_USB
-#include "EspUsbHost.h"
-#endif
+#include <ESPmDNS.h>
 #define MAX_ROUTES 100
 #include "reportMap.h"
 #include <IRremote.hpp>
@@ -29,24 +22,29 @@ HTTPClient http; // Globaler HTTPClient
 
 // USB Definitions
 bool usb_connected = false;
-unsigned long keyPressStartTime = 0;
+unsigned long keyPressStartTime = 550;
 bool keyPressed = false;
 int longKey = 500;
-//bool forward = false;
 
-// BLE HID service variables
-// BLE HID service variables
-/*BLEHIDDevice* hid;
-BLECharacteristic* input;
-BLECharacteristic* output;
-BleKeyboard bleKeyboard("ESP32 Keyboard", "DeZi", 100);*/
-//BleKeyboard bleKeyboard;
-//BleKeyboard bleKeyboard;
+bool debug = false;
+
 bool is_ble_connected = false;
 NimBLEHIDDevice* hid;
 NimBLECharacteristic* input;
 bool connected = false;
 NimBLECharacteristic* consumerInput;
+
+// IR: Pin Definitionen
+#ifdef BOARD_ESP32_DEVKITC
+    #define IR_RECEIVE_PIN           2
+    #define IR_SEND_PIN              3
+    #define ENABLE_LED_FEEDBACK     false
+#else
+    #define IR_RECEIVE_PIN          15 // (15)(2) IR Empfänger Pin
+    #define IR_SEND_PIN              4  // (4)(3)IR Sender Pin
+    #define ENABLE_LED_FEEDBACK     true
+#endif
+#define NO_LED_FEEDBACK_CODE 
 
 struct IRrcv
 { // Eingang IR
@@ -76,9 +74,7 @@ class MyCallbacks : public NimBLEServerCallbacks {
     }
 };
 
-
-
-void sendBle(uint8_t modifier, uint8_t keycode, bool isRepeat);
+void sendBLE(uint8_t modifier, uint8_t keycode, bool isRepeat);
 void handleSendBle(AsyncWebServerRequest *request);
 void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol);
 void sendHttpToAPI(String provider, String data);
@@ -89,13 +85,45 @@ void handleLoadRequest(AsyncWebServerRequest *request);
 void loadRoutesFromNVS();
 void route(String source, IRrcv irData);
 void route(String source, USBRecv usbData);
+    extern AsyncEventSource events;
+
+#ifdef BOARD_ESP32_DEVKITC
+class MyEspUsbHost : public EspUsbHost {
+public:
+    bool usb_connected = false;
 
 
+    void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
+        usb_connected = true;
+    
+        if (!keyPressed) {  // Taste wurde gerade gedrückt
+            keyPressStartTime = millis();  // Speichere den Zeitpunkt des Tastendrucks
+            keyPressed = true;  // Setze den Status auf "Taste gedrückt"
+        } else {  // Taste wurde losgelassen
+            // Berechne die gedrückte Zeit
+            unsigned long duration = millis() - keyPressStartTime;  // Zeitdauer in Millisekunden
+            USBRecv usbData;
+            usbData.command = keycode;
+            usbData.modifier = modifier;
+            usbData.keyLong = duration > longKey ? 2 : 0;
 
-// IR: Pin Definitionen
-const int RECV_PIN = 15; // (15)(2) IR Empfänger Pin
-const int SEND_PIN = 4;  // (4)(3)IR Sender Pin
-#define NO_LED_FEEDBACK_CODE
+            String keyEntry = String("Key: ") + String(keycode, HEX) + 
+                              " (ASCII:" + String((char)ascii) + 
+                              ") Modifier: " + String(modifier, HEX) + 
+                              " Duration: " + String(duration) + " ms\n";
+            route("USB", usbData);
+            Serial.printf("%s", keyEntry.c_str());
+            events.send(keyEntry.c_str());
+
+            //sendBleReport(modifier, keycode);
+
+            // Reset der Statusvariablen
+            keyPressed = false;  // Setze den Status auf "Taste nicht gedrückt"
+        }
+     }
+};
+MyEspUsbHost usbHost;
+#endif
 
 Preferences preferences;
 bool sendDataDefaultToApi = false;
@@ -189,7 +217,10 @@ void webserver() {
 }
 
 void IRRecvTask(void *pvParameters) {
-    IrReceiver.begin(RECV_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
+    // void IRRecvTask() {
+    IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
+    //IrReceiver.begin(IR_RECEIVE_PIN, true, IR_RECEIVE_PIN);
+    // IrReceiver.begin(RECV_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
     Serial.print(F("Ready to receive IR signals of protocols: "));
     String protocol = []{ String output; class StringPrinter : public Print 
         { public: String &output; StringPrinter(String &output) : 
@@ -200,7 +231,9 @@ void IRRecvTask(void *pvParameters) {
     // ANCHOR ws.textAll(protocol.c_str());
     Serial.println(protocol);
 
-    IrSender.begin(SEND_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
+    IrSender.begin(IR_SEND_PIN);
+        //IrSender.begin(IR_SEND_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
+
     IrReceiver.enableIRIn(); // Start the receiver
 
     while (true) {
@@ -223,8 +256,8 @@ void IRRecvTask(void *pvParameters) {
             Serial.println(rcvInfo);
         }
         vTaskDelay(pdMS_TO_TICKS(10)); // Kurze Pause, um anderen Tasks Zeit zu geben
-    }
-}
+    } 
+} 
 // Sendet die IR Daten
 void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol)
 {
@@ -358,6 +391,8 @@ void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress) {
         uint8_t report[8] = {0};
         report[0] = modifier; // Modifier (e.g., Ctrl, Shift)
         report[2] = keycode;  // Keycode
+                Serial.printf("Sending HID Report: Modifier: 0x%02X, Keycode: 0x%02X\n", modifier, keycode);
+
         input->setValue(report, sizeof(report));
         input->notify();
         delay(duration);
@@ -373,6 +408,7 @@ void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress) {
         Serial.println(sendInfo);
     } else {
          Serial.println("BLE Keyboad not connected, discarding input."); 
+         events.send("BLE Keyboard not connected, discarding input.");
     }
 }
 
@@ -582,15 +618,15 @@ void route(String source, IRrcv irData)
                     Serial.println("sendIR: Matched, Resend IR Data");
                     sendIR(route.oIRaddress, route.oIRcode, finalRepeat, route.oIRprot);
                 }
-                /*else if (route.actionFuncName == "sendBLE")
+                else if (route.actionFuncName == "sendBLE")
                 {
                     bool finalRepeat = (route.isRepeat == 2) ? irData.isRepeat : route.oRBleRepeat;
                     Serial.println("sendIR: Matched, Sent BLE Data");
-                    //sendBle(route.oBleMod, route.oBleCode, finalRepeat);
+                    sendBLE(route.oBleMod, route.oBleCode, finalRepeat);
                     // ANCHOR-FIX
-                    sendBle(uint8_t(route.oBleMod), uint8_t(route.oBleCode), bool(finalRepeat));
+                    //sendBle(uint8_t(route.oBleMod), uint8_t(route.oBleCode), bool(finalRepeat));
 
-                }*/
+                }
                 else if (route.actionFuncName == "sendHttpToAPI")
                 {
                     String data = "protocol=" + String(irData.protocol) +
@@ -613,15 +649,15 @@ void route(String source, IRrcv irData)
                   "&address=" + String(irData.address) +
                   "&isRepeat=" + String(irData.isRepeat);
     
-    if (irData.protocol != 0) {
-        sendHttpToAPI(source, data);
-        events.send("No definition: Send IR to default HTTP URL");
-        Serial.println("Sending to default URL");
-        Serial.println("Not sending Unknown");
+    if (irData.protocol != 0x0){
+        if (forward == true){
+            sendHttpToAPI(source, data);
+            events.send("No definition: Send IR to default HTTP URL");
+            Serial.println("Sending to default URL");
         } else { 
-        Serial.println("Not sending Unknown");  
-         }
-
+            Serial.println("Not no forwarding enables. Discarding data.");  
+        }
+    }
 }
 
 void route(String source, USBRecv usbData)
@@ -631,7 +667,7 @@ void route(String source, USBRecv usbData)
         Route &route = routeTable[i];
 
         // Überprüfung für USB-Daten
-        if (source == "IF" &&
+        if (source == "USB" &&
             usbData.modifier == route.modifier &&
             usbData.command == route.command)
         {
@@ -648,13 +684,15 @@ void route(String source, USBRecv usbData)
                 {
                     bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oIRisRepeat;
                     Serial.println("USB: Matched, Sent IR Data");
+                    events.send("Route matched: Sending USB to IR");
                     sendIR(route.oIRaddress, route.oIRcode, finalRepeat, route.oIRprot);
                 }
                 else if (route.actionFuncName == "sendBLE")
                 {
                     bool finalRepeat = (route.keyLong == 2) ? usbData.keyLong : route.oRBleRepeat;
                     Serial.println("USB: Matched, Sent BLE Data");
-                    sendBle(route.oBleMod, route.oBleCode, finalRepeat);
+                    events.send("Route matched: Sending USB to BLE");
+                    sendBLE(route.oBleMod, route.oBleCode, finalRepeat);
                 }
                 else if (route.actionFuncName == "sendHttpToAPI")
                 {
@@ -662,6 +700,7 @@ void route(String source, USBRecv usbData)
                                   "&command=" + String(usbData.command) +
                                   "&keyLong=" + String(usbData.keyLong);
                     Serial.println("USB: Matched, Sent Data to API");
+                    events.send("Route matched: Sending IR to HTTP Endpoint");
                     sendHttpToAPI(source, data);
                 }
                 return; // Aktion ausgeführt, keine weitere Prüfung nötig
@@ -673,9 +712,13 @@ void route(String source, USBRecv usbData)
     String data = "modifier=" + String(usbData.modifier) +
                   "&command=" + String(usbData.command) +
                   "&keyLong=" + String(usbData.keyLong);
-    Serial.println("None: No Match found");
-    sendHttpToAPI(source, data);
-}
+    Serial.println("None: No Route Match found");
+    if (forward){
+        sendHttpToAPI(source, data);
+        events.send("No definition: Send USB to default HTTP URL");
+        Serial.println("Sending to default URL");
+        }
+ }
 
 void loadRoutesFromNVS() {
     if (!preferences.begin("routeData", true)) {
@@ -696,6 +739,15 @@ void loadRoutesFromNVS() {
     serverURL = preferences.getString("serverURL", "");
     forward = preferences.getBool("forward", false);
 
+    for (int i = 0; i < routeCount; i++) {
+        String key = "route" + String(i);
+        if (preferences.getBytesLength(key.c_str()) == sizeof(Route)) {
+            preferences.getBytes(key.c_str(), &routeTable[i], sizeof(Route));
+        } else {
+            Serial.println("Route data size mismatch for key: " + key);
+        }
+    }
+
     preferences.end();
     Serial.println("Routes and settings loaded from NVS.");
 }
@@ -713,19 +765,77 @@ void saveRoutesToNVS()
     preferences.putString("serverURL", serverURL);
     preferences.putBool("forward", forward);
 
+    for (int i = 0; i < routeCount; i++) {
+        String key = "route" + String(i);
+        preferences.putBytes(key.c_str(), &routeTable[i], sizeof(Route));
+    }
+
     preferences.end();
     Serial.println("Routes and settings saved to NVS.");
 }
+
+void listPartitions() {
+    const esp_partition_t* partition;
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+
+    Serial.println("App Partitions:");
+    while (it != NULL) {
+        partition = esp_partition_get(it);
+        Serial.printf("Name: %s, Type: %d, SubType: %d, Address: 0x%08x, Size: 0x%08x\n",
+                      partition->label, partition->type, partition->subtype, partition->address, partition->size);
+        it = esp_partition_next(it);
+    }
+    esp_partition_iterator_release(it);
+
+    it = esp_partition_find(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, NULL);
+    Serial.println("Data Partitions:");
+    while (it != NULL) {
+        partition = esp_partition_get(it);
+        Serial.printf("Name: %s, Type: %d, SubType: %d, Address: 0x%08x, Size: 0x%08x\n",
+                      partition->label, partition->type, partition->subtype, partition->address, partition->size);
+        it = esp_partition_next(it);
+    }
+    esp_partition_iterator_release(it);
+}
+
+void showNVSUsage() {
+    // NVS-Nutzung anzeigen
+    nvs_stats_t nvs_stats;
+    esp_err_t err = nvs_get_stats(NULL, &nvs_stats);
+    if (err != ESP_OK) {
+        Serial.printf("Error (%s) getting NVS stats!\n", esp_err_to_name(err));
+        return;
+    }
+
+    Serial.printf("NVS Usage: Used entries = %u, Free entries = %u, All entries = %u, Namespace count = %u\n",
+                  nvs_stats.used_entries, nvs_stats.free_entries, nvs_stats.total_entries, nvs_stats.namespace_count);
+}
+
 
 void setup() {
     Serial.begin(115200);
     Serial.print("Free Heap: ");
     Serial.println(ESP.getFreeHeap());
+    if (psramFound()) {
+        Serial.println("PSRAM is available.");
+        Serial.printf("Total PSRAM: %u bytes\n", ESP.getPsramSize());
+        Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
+    } else {
+        Serial.println("PSRAM is not available.");
+    }   
+
+    showNVSUsage(); 
+    Serial.printf("Flashsize: %u bytes\n", ESP.getFlashChipSize());
     wifiTask();
+
     loadRoutesFromNVS();
     webserver();
     initBLE("BLE IR Router");
     Serial.println("Advertising started!");
+    #ifdef BOARD_ESP32_DEVKITC
+        usbHost.begin();
+    #endif
+
     // SSE-Endpunkt registrieren
     server.addHandler(&events);
       // HTTP-Endpunkte
@@ -739,9 +849,9 @@ void setup() {
             { handleLoadRequest(request); });
     server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request)
             { handleSaveRequest(request); });
-    
+   
         // Erstelle eine neue FreeRTOS-Task für die IR-Empfänger-Logik
-    BaseType_t result = xTaskCreatePinnedToCore(
+     BaseType_t result = xTaskCreatePinnedToCore(
             IRRecvTask,        // Task-Funktion
             "IRRecvTask",      // Name der Task
             8192,              // Stapelgröße in Wörtern
@@ -749,45 +859,11 @@ void setup() {
             1,                 // Priorität der Task
             NULL,              // Task-Handle
             1                  // Kern, auf dem die Task ausgeführt werden soll
-        );
-
-
-
+        ); 
 }
 
-/* // Simulierte Log-Daten
-unsigned long previousMillis = 0;
-const long interval = 1000; // Intervall (1 Sekunde) */
-
 void loop() {
-/* 
-        if (connected) {
-        uint8_t keycode[8] = {0};
-        keycode[2] = 0x0b; // 'h'
-        input->setValue(keycode, sizeof(keycode));
-        input->notify();
-        delay(100);
-        keycode[2] = 0x08; // 'e'
-        input->setValue(keycode, sizeof(keycode));
-        input->notify();
-        delay(100);
-        keycode[2] = 0x0f; // 'l'
-        input->setValue(keycode, sizeof(keycode));
-        input->notify();
-        delay(100);
-        keycode[2] = 0x0f; // 'l'
-        input->setValue(keycode, sizeof(keycode));
-        input->notify();
-        delay(100);
-        keycode[2] = 0x12; // 'o'
-        input->setValue(keycode, sizeof(keycode));
-        input->notify();
-        delay(100);
-        keycode[2] = 0x00; // release key
-        input->setValue(keycode, sizeof(keycode));
-        input->notify();
-        delay(1000);
-    } */
-        
-
+    #ifdef BOARD_ESP32_DEVKITC
+        usbHost.task();
+    #endif
 }

@@ -32,10 +32,10 @@ const uint8_t reportMap[] = {
     0x95, 0x06,                // Report Count (6)
     0x75, 0x08,                // Report Size (8)
     0x15, 0x00,                // Logical Minimum (0)
-    0x25, 0x65,                // Logical Maximum (101)
+    0x25, 0xFF,                // Logical Maximum (101)
     0x05, 0x07,                // Usage Page (Key Codes)
     0x19, 0x00,                // Usage Minimum (0)
-    0x29, 0x65,                // Usage Maximum (101)
+    0x29, 0xFF,                // Usage Maximum (255)
     0x81, 0x00,                // Input (Data, Array) - Key array (6 keys)
     0xC0                       // End Collection
 };
