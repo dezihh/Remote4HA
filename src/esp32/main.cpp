@@ -77,7 +77,7 @@ class MyCallbacks : public NimBLEServerCallbacks {
 void sendBLE(uint8_t modifier, uint8_t keycode, bool isRepeat);
 void handleSendBle(AsyncWebServerRequest *request);
 void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol);
-void sendHttpToAPI(String provider, String data);
+void sendHttpToAPI(const String& provider, const String& data);
 void handleServerCommand(AsyncWebServerRequest *request);
 void handleSaveRequest(AsyncWebServerRequest *request);
 void saveRoutesToNVS();
@@ -184,21 +184,30 @@ void wifiTask() {
 }
 
 // Forward Data to Server
-void sendHttpToAPI(String provider, String data) {
-    if (!http.connected()) {
+void sendHttpToAPI(const String& provider, const String& data) {
+    static WiFiClient client;
+    static HTTPClient http;
+    static bool isHttpInitialized = false;
+
+    if (!isHttpInitialized) {
         if (!http.begin(client, serverURL)) { // Verwenden Sie WiFiClient
             Serial.println("Failed to initialize HTTP client");
             return;
         }
         http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+        isHttpInitialized = true;
     }
 
     String payload = "provider=" + provider + "&data=" + data;
-    if (debug){Serial.println("Sending data to API: " + payload);}
+    if (debug) {
+        Serial.println("Sending data to API: " + payload);
+    }
 
     int httpResponseCode = http.POST(payload);
     if (httpResponseCode > 0) {
-        if (debug){Serial.printf("Server Response: %d\n", httpResponseCode);}
+        if (debug) {
+            Serial.printf("Server Response: %d\n", httpResponseCode);
+        }
     } else {
         Serial.printf("Error in sending request: %s\n", http.errorToString(httpResponseCode).c_str());
     }
@@ -217,23 +226,28 @@ void webserver() {
     server.begin();
 }
 
-void IRRecvTask(void *pvParameters) {
-    // void IRRecvTask() {
-    IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
-    //IrReceiver.begin(IR_RECEIVE_PIN, true, IR_RECEIVE_PIN);
-    // IrReceiver.begin(RECV_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
-    Serial.print(F("Ready to receive IR signals of protocols: "));
-    String protocol = []{ String output; class StringPrinter : public Print 
-        { public: String &output; StringPrinter(String &output) : 
-        output(output) {} size_t write(uint8_t c) { output += (char)c; return 1; } }; 
-        StringPrinter printer(output); printActiveIRProtocols(&printer); return output; }();
-    String protocols = "Activated IR Protocols: " + protocol;
-    events.send(protocol.c_str());
-    // ANCHOR ws.textAll(protocol.c_str());
-    Serial.println(protocol);
+void printActiveIRProtocols() {
+    String output;
+    class StringPrinter : public Print {
+    public:
+        String &output;
+        StringPrinter(String &output) : output(output) {}
+        size_t write(uint8_t c) {
+            output += (char)c;
+            return 1;
+        }
+    };
+    StringPrinter printer(output);
+    printActiveIRProtocols(&printer);
+    String protocols = "Activated IR Protocols: " + output;
+    events.send(output.c_str());
+    Serial.println(protocols);
+}
 
-    IrSender.begin(IR_SEND_PIN);
-        //IrSender.begin(IR_SEND_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
+void IRRecvTask(void *pvParameters) {
+    IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN);
+    Serial.print(F("Ready to receive IR signals of protocols: "));
+    printActiveIRProtocols();
 
     IrReceiver.enableIRIn(); // Start the receiver
 
@@ -244,11 +258,11 @@ void IRRecvTask(void *pvParameters) {
             data.address = IrReceiver.decodedIRData.address;
             data.code = IrReceiver.decodedIRData.command;
             data.isRepeat = (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) != 0;
-            String protName = getProtocolString(data.protocol);
+            const char* protName = getProtocolString(data.protocol);
             route("IR", data);
             IrReceiver.resume();
             String rcvInfo = "Received IR - Protocol: " +
-                             protName + "(" + String(data.protocol) + ")" +
+                             String(protName) + "(" + String(data.protocol) + ")" +
                              " Address: 0x" + String(data.address, HEX) +
                              " Code: 0x" + String(data.code, HEX) +
                              " Repeat: " + String(data.isRepeat ? "true" : "false");
@@ -257,14 +271,14 @@ void IRRecvTask(void *pvParameters) {
             Serial.println(rcvInfo);
         }
         vTaskDelay(pdMS_TO_TICKS(10)); // Kurze Pause, um anderen Tasks Zeit zu geben
-    } 
-} 
+    }
+}
+
 // Sendet die IR Daten
 void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol)
 {
     String protocolUpper = getProtocolString(protocol);
     std::transform(protocolUpper.begin(), protocolUpper.end(), protocolUpper.begin(), ::toupper);
-
     IrReceiver.stop();
 
     uint32_t maskedAddress;
@@ -440,8 +454,6 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
     }
 
     String rawData = request->getParam("data", true)->value();
-    Serial.println("Received data:");
-    Serial.println(rawData);
 
     if (!rawData.endsWith("\n")) {
         rawData += "\n";
@@ -457,13 +469,10 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
         if (row.startsWith("APIHost=")) {
             serverURL = row.substring(String("APIHost=").length());
             serverURL.trim();
-            Serial.printf("Parsed hostURL: %s\n", serverURL.c_str());
         } else if (row.startsWith("sendToApi=")) {
             String forwardStr = row.substring(String("sendToApi=").length());
             forwardStr.trim();
-            Serial.printf("Parsed forwardStr: %s\n", forwardStr.c_str());
             forward = (forwardStr == "true");
-            Serial.printf("Parsed forward: %s\n", forward ? "true" : "false");
         } else if (routeCount < MAX_ROUTES) {
             int componentIndex = 0;
             int componentStart = 0;
@@ -529,7 +538,6 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
                         break;
                     case 16:
                         routeTable[routeCount].comment = component;
-                        Serial.printf("Parsed comment: %s\n", component.c_str());
                         break;
                 }
 
@@ -546,9 +554,10 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
     }
 
     saveRoutesToNVS();
-
-    Serial.printf("Saved ServerURL: %s\n", serverURL.c_str());
-    Serial.printf("Saved forward: %s\n", forward ? "true" : "false");
+    if (debug){
+        Serial.printf("Saved ServerURL: %s\n", serverURL.c_str());
+        Serial.printf("Saved forward: %s\n", forward ? "true" : "false");
+    }
 
     request->send(200, "text/plain", "Routes and settings saved successfully");
 }
@@ -771,8 +780,6 @@ void saveRoutesToNVS()
     for (int i = 0; i < routeCount; i++) {
         String key = "route" + String(i);
         preferences.putBytes(key.c_str(), &routeTable[i], sizeof(Route));
-        Serial.printf("Route %d: source=%s, protocol=0x%X, code=0x%X, address=0x%X, isRepeat=%d, modifier=0x%X, command=0x%X, keyLong=%d, actionFuncName=%s, oIRprot=0x%X, oIRcode=0x%X, oIRaddress=0x%X, oIRisRepeat=%d, oBleMod=0x%X, oBleCode=0x%X, oRBleRepeat=%d, comment=%s\n",
-                      i, routeTable[i].source.c_str(), routeTable[i].protocol, routeTable[i].code, routeTable[i].address, routeTable[i].isRepeat, routeTable[i].modifier, routeTable[i].command, routeTable[i].keyLong, routeTable[i].actionFuncName.c_str(), routeTable[i].oIRprot, routeTable[i].oIRcode, routeTable[i].oIRaddress, routeTable[i].oIRisRepeat, routeTable[i].oBleMod, routeTable[i].oBleCode, routeTable[i].oRBleRepeat, routeTable[i].comment.c_str());
     }
 
     preferences.end();
@@ -835,6 +842,8 @@ void setup() {
 
     loadRoutesFromNVS();
     webserver();
+        // Initialisiere den IR-Sender
+    IrSender.begin(IR_SEND_PIN);
     initBLE("BLE IR Router");
     Serial.println("Advertising started!");
     #ifdef BOARD_ESP32_DEVKITC
