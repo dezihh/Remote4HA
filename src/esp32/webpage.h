@@ -240,6 +240,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
           <th>BLE-Modifier</th>
           <th>BLE-Code</th>
           <th>BLE-Long</th>
+		  <th>Comment</th>
           <th>Delete</th>
         </tr>
       </thead>
@@ -444,6 +445,7 @@ function addRow(rowData = null) {
         <td>${createModifierDropdown(defaultValues[13])}</td>
         <td><input type="text" value="${defaultValues[14] || ""}"></td>
         <td>${createBooleanDropdown(defaultValues[15])}</td>
+		<td><input type="text" value="${defaultValues[16] || ""}"></td>
         <td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>`;
     tableBody.appendChild(newRow);
     toggleFields(newRow.querySelector("select"));
@@ -923,6 +925,7 @@ function sendBLEData() {
 			<td>${createModifierDropdown(values[13])}</td>
 			<td><input type="text" value="${values[14]}"></td>
 			<td>${createBooleanDropdown(values[15])}</td>
+			<td><input type="text" value="${values[16]}"></td>
 			<td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>
 		`;
 

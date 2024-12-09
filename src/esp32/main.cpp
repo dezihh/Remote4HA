@@ -85,7 +85,7 @@ void handleLoadRequest(AsyncWebServerRequest *request);
 void loadRoutesFromNVS();
 void route(String source, IRrcv irData);
 void route(String source, USBRecv usbData);
-    extern AsyncEventSource events;
+extern AsyncEventSource events;
 
 #ifdef BOARD_ESP32_DEVKITC
 class MyEspUsbHost : public EspUsbHost {
@@ -156,7 +156,8 @@ struct Route
     bool oIRisRepeat;      // IR Repeat 0 oder 1
     uint8_t oBleMod;       // BLE Modifier
     uint8_t oBleCode;      // BLE Command
-    bool oRBleRepeat;      // BLE Repeat
+    bool oRBleRepeat;      // BLE 
+    String comment;        // Kommentar
 };
 
 Route routeTable[MAX_ROUTES];
@@ -437,20 +438,15 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
         request->send(400, "text/plain", "No data= provided");
         return;
     }
+
     String rawData = request->getParam("data", true)->value();
+    Serial.println("Received data:");
+    Serial.println(rawData);
 
-    // Retrieve the data
-    if (debug){
-        Serial.println("Received data:");
-        Serial.println(rawData);
-    }
-
-    // Ensure the data ends with a newline character
     if (!rawData.endsWith("\n")) {
         rawData += "\n";
     }
 
-    // Reset route count before processing new data
     routeCount = 0;
     int startIndex = 0;
     int endIndex = rawData.indexOf("\n");
@@ -461,28 +457,31 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
         if (row.startsWith("APIHost=")) {
             serverURL = row.substring(String("APIHost=").length());
             serverURL.trim();
-            if (debug){Serial.printf("Parsed hostURL: %s\n", serverURL.c_str());}
+            Serial.printf("Parsed hostURL: %s\n", serverURL.c_str());
         } else if (row.startsWith("sendToApi=")) {
             String forwardStr = row.substring(String("sendToApi=").length());
             forwardStr.trim();
-            if (debug){Serial.printf("Parsed forwardStr: %s\n", forwardStr.c_str());}
+            Serial.printf("Parsed forwardStr: %s\n", forwardStr.c_str());
             forward = (forwardStr == "true");
-            if(debug){Serial.printf("Parsed forward: %s\n", forward ? "true" : "false");}
+            Serial.printf("Parsed forward: %s\n", forward ? "true" : "false");
         } else if (routeCount < MAX_ROUTES) {
-            // Split the row into individual components
             int componentIndex = 0;
             int componentStart = 0;
             int componentEnd = row.indexOf(',');
 
-            while (componentEnd != -1) {
-                String component = row.substring(componentStart, componentEnd);
+            while (componentIndex < 17) {
+                String component;
+                if (componentEnd == -1) {
+                    component = row.substring(componentStart);
+                } else {
+                    component = row.substring(componentStart, componentEnd);
+                }
                 component.trim();
 
                 switch (componentIndex) {
                     case 0:
                         routeTable[routeCount].source = component;
                         break;
-                        // ANCHOR-FIX
                     case 1:
                         routeTable[routeCount].protocol = static_cast<decode_type_t>(strtol(component.c_str(), NULL, 16));
                         break;
@@ -528,12 +527,17 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
                     case 15:
                         routeTable[routeCount].oRBleRepeat = component.toInt();
                         break;
+                    case 16:
+                        routeTable[routeCount].comment = component;
+                        Serial.printf("Parsed comment: %s\n", component.c_str());
+                        break;
                 }
 
                 componentIndex++;
                 componentStart = componentEnd + 1;
                 componentEnd = row.indexOf(',', componentStart);
             }
+
             routeCount++;
         }
 
@@ -541,13 +545,11 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
         endIndex = rawData.indexOf("\n", startIndex);
     }
 
-    // Save all parsed routes to NVS
     saveRoutesToNVS();
 
-    // Debug output for hostAddress and forward
-    if (debug){Serial.printf("Saved ServerURL: %s\n", serverURL.c_str());}
+    Serial.printf("Saved ServerURL: %s\n", serverURL.c_str());
+    Serial.printf("Saved forward: %s\n", forward ? "true" : "false");
 
-    // Send success response
     request->send(200, "text/plain", "Routes and settings saved successfully");
 }
 
@@ -557,9 +559,9 @@ void handleLoadRequest(AsyncWebServerRequest *request)
     String responseData;
     for (int i = 0; i < routeCount; i++)
     {
-        char buffer[256];
+        char buffer[512];
         snprintf(buffer, sizeof(buffer),
-             "%s,0x%X,0x%X,0x%X,%d,0x%X,0x%X,%d,%s,0x%X,0x%X,0x%X,%d,0x%X,0x%X,%d\n",
+             "%s,0x%X,0x%X,0x%X,%d,0x%X,0x%X,%d,%s,0x%X,0x%X,0x%X,%d,0x%X,0x%X,%d,%s\n",
              routeTable[i].source.c_str(),
              routeTable[i].protocol,
              routeTable[i].code,
@@ -575,7 +577,8 @@ void handleLoadRequest(AsyncWebServerRequest *request)
              routeTable[i].oIRisRepeat,
              routeTable[i].oBleMod,
              routeTable[i].oBleCode,
-             routeTable[i].oRBleRepeat);
+             routeTable[i].oRBleRepeat,
+             routeTable[i].comment.c_str());
         responseData += buffer;
     }
 
@@ -768,6 +771,8 @@ void saveRoutesToNVS()
     for (int i = 0; i < routeCount; i++) {
         String key = "route" + String(i);
         preferences.putBytes(key.c_str(), &routeTable[i], sizeof(Route));
+        Serial.printf("Route %d: source=%s, protocol=0x%X, code=0x%X, address=0x%X, isRepeat=%d, modifier=0x%X, command=0x%X, keyLong=%d, actionFuncName=%s, oIRprot=0x%X, oIRcode=0x%X, oIRaddress=0x%X, oIRisRepeat=%d, oBleMod=0x%X, oBleCode=0x%X, oRBleRepeat=%d, comment=%s\n",
+                      i, routeTable[i].source.c_str(), routeTable[i].protocol, routeTable[i].code, routeTable[i].address, routeTable[i].isRepeat, routeTable[i].modifier, routeTable[i].command, routeTable[i].keyLong, routeTable[i].actionFuncName.c_str(), routeTable[i].oIRprot, routeTable[i].oIRcode, routeTable[i].oIRaddress, routeTable[i].oIRisRepeat, routeTable[i].oBleMod, routeTable[i].oBleCode, routeTable[i].oRBleRepeat, routeTable[i].comment.c_str());
     }
 
     preferences.end();
