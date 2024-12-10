@@ -433,9 +433,9 @@ function addRow(rowData = null) {
         <td>${createMaybeDropdown(defaultValues[7])}</td>
         <td>
             <select onchange="toggleRouteFields(this)">
-                <option value="sendIR" ${defaultValues[8] === "sendIR" ? "selected" : ""}>sendIR</option>
-                <option value="sendBLE" ${defaultValues[8] === "sendBLE" ? "selected" : ""}>sendBLE</option>
-                <option value="sendHttpToAPI" ${defaultValues[8] === "sendHttpToAPI" ? "selected" : ""}>sendHttpToAPI</option>
+                <option value="sendIR" ${defaultValues[8] === "sendIR" ? "selected" : ""}>IR</option>
+                <option value="sendBLE" ${defaultValues[8] === "sendBLE" ? "selected" : ""}>BLE</option>
+                <option value="sendHttpToAPI" ${defaultValues[8] === "sendHttpToAPI" ? "selected" : ""}>API</option>
             </select>
         </td>
         <td>${createProtocolDropdown(defaultValues[9])}</td>
@@ -913,9 +913,9 @@ function sendBLEData() {
 			<td>${createMaybeDropdown(values[7])}</td>
 			<td>
 				<select onchange="toggleRouteFields(this)">
-					<option value="sendIR" ${values[8] === "sendIR" ? "selected" : ""}>sendIR</option>
-					<option value="sendBLE" ${values[8] === "sendBLE" ? "selected" : ""}>sendBLE</option>
-					<option value="sendHttpToAPI" ${values[8] === "sendHttpToAPI" ? "selected" : ""}>sendHttpToAPI</option>
+					<option value="sendIR" ${values[8] === "sendIR" ? "selected" : ""}>IR</option>
+					<option value="sendBLE" ${values[8] === "sendBLE" ? "selected" : ""}>BLE</option>
+					<option value="sendHttpToAPI" ${values[8] === "sendHttpToAPI" ? "selected" : ""}>API</option>
 				</select>
 			</td>
 			<td>${createProtocolDropdown(values[9])}</td>
