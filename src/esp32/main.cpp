@@ -17,9 +17,6 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 
-WiFiClient client; // Verwenden Sie WiFiClient
-HTTPClient http; // Globaler HTTPClient
-
 // USB Definitions
 bool usb_connected = false;
 unsigned long keyPressStartTime = 550;
@@ -62,9 +59,12 @@ struct USBRecv
 };
 
 class MyCallbacks : public NimBLEServerCallbacks {
-    void onConnect(NimBLEServer* pServer) {
+    void onConnect(NimBLEServer* pServer, ble_gap_conn_desc* desc) {
         connected = true;
         Serial.println("Client connected");
+        // Hole die Peer-Adresse des verbundenen Geräts
+        Serial.print("Client Address: ");
+        Serial.println(NimBLEAddress(desc->peer_ota_addr).toString().c_str());
     }
 
     void onDisconnect(NimBLEServer* pServer) {
@@ -164,6 +164,8 @@ Route routeTable[MAX_ROUTES];
 int routeCount = 0;
 
 void wifiTask() {
+    WiFiClient client; // Verwenden Sie WiFiClient
+    HTTPClient http; //  HTTPClient
     WiFiManager wm;
     if (!wm.autoConnect("ESP32_AutoConnect"))
     {
