@@ -30,6 +30,7 @@ NimBLEHIDDevice* hid;
 NimBLECharacteristic* input;
 bool connected = false;
 NimBLECharacteristic* consumerInput;
+Preferences preferences;
 
 // IR: Pin Definitionen
 #ifdef BOARD_ESP32_DEVKITC
@@ -62,9 +63,12 @@ class MyCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer* pServer, ble_gap_conn_desc* desc) {
         connected = true;
         Serial.println("Client connected");
-        // Hole die Peer-Adresse des verbundenen Geräts
-        Serial.print("Client Address: ");
-        Serial.println(NimBLEAddress(desc->peer_ota_addr).toString().c_str());
+        NimBLEAddress address = NimBLEAddress(desc->peer_ota_addr);
+        preferences.begin("BLE", false);
+        preferences.putString("lastAddress", address.toString().c_str());
+        preferences.end();
+        Serial.println(("Device connected and address stored: " + address.toString()).c_str());
+        
     }
 
     void onDisconnect(NimBLEServer* pServer) {
@@ -125,7 +129,7 @@ public:
 MyEspUsbHost usbHost;
 #endif
 
-Preferences preferences;
+
 bool sendDataDefaultToApi = false;
 bool forward;
 String serverURL;
@@ -379,6 +383,9 @@ void handleSendIr(AsyncWebServerRequest *request)
     }
 }
 
+NimBLEClient* pClient = nullptr;
+NimBLEAddress lastConnectedDevice;
+
 void initBLE(String serverName) 
 {
     NimBLEDevice::init(serverName.c_str());
@@ -386,8 +393,8 @@ void initBLE(String serverName)
     pServer->setCallbacks(new MyCallbacks());
 
     hid = new NimBLEHIDDevice(pServer);
-    input = hid->inputReport(1); // <-- input REPORTID from report map
-    consumerInput = hid->inputReport(2); // <-- input REPORTID for consumer control
+    input = hid->inputReport(1);
+    consumerInput = hid->inputReport(2);
     hid->manufacturer()->setValue("ESP32 Manufacturer");
     hid->pnp(0x02, 0x1234, 0x5678, 0x0110);
     hid->hidInfo(0x00, 0x01);
@@ -399,7 +406,30 @@ void initBLE(String serverName)
     pAdvertising->addServiceUUID(hid->hidService()->getUUID());
     pAdvertising->start();
     Serial.println("Advertising started!");
+
+    // Attempt to reconnect to the last connected device
+    preferences.begin("BLE", true);
+    String lastAddress = preferences.getString("lastAddress", "");
+    preferences.end();
+    if (lastAddress != "") {
+        NimBLEAddress address(lastAddress.c_str());
+        NimBLEClient* pClient = NimBLEDevice::createClient();
+        if (pClient->connect(address, false)) {
+            Serial.println("Reconnected to the device: " + lastAddress);
+        } else {
+            Serial.println("Failed to reconnect, starting fresh.");
+        }
+    }
 }
+
+
+void initSecurity() {
+    NimBLESecurity* pSecurity = new NimBLESecurity();
+    pSecurity->setAuthenticationMode(ESP_LE_AUTH_BOND);
+    pSecurity->setCapability(ESP_IO_CAP_NONE);  // Keine PIN erforderlich
+    pSecurity->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
+}
+
 
 //void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress = false) {
 void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress) {
