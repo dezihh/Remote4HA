@@ -47,6 +47,10 @@ modprobe cp341<br>
 <br>Blog: https://community.platformio.org/t/platformio-esp32-partitions/33792
 
 <br><b>ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1</b>
+
+##Keycodes:
+<br>https://developer.android.com/reference/android/view/KeyEvent
+
 <br> Memory: 384kb
 <br> Flash: 16MB und 8MB PSRAM
 
