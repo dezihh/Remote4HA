@@ -78,7 +78,7 @@ class MyCallbacks : public NimBLEServerCallbacks {
     }
 };
 
-void sendBLE(uint8_t modifier, uint8_t keycode, bool isRepeat);
+void sendBLE(uint8_t modifier, uint16_t keycode, bool isRepeat);
 void handleSendBle(AsyncWebServerRequest *request);
 void sendIR(uint32_t address, uint8_t command, bool repeats, decode_type_t protocol);
 void sendHttpToAPI(const String& provider, const String& data);
@@ -155,7 +155,7 @@ struct Route
 
     String actionFuncName; // Sendefunction
     decode_type_t oIRprot; // IR Prot
-    uint8_t oIRcode;       // IR Code
+    uint16_t oIRcode;       // IR Code
     uint32_t oIRaddress;   // IR Address
     bool oIRisRepeat;      // IR Repeat 0 oder 1
     uint8_t oBleMod;       // BLE Modifier
@@ -432,42 +432,62 @@ void initSecurity() {
 
 
 //void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress = false) {
-void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress) {
-    uint16_t duration = longPress ? 555 : 100; // 555 ms für langen Tastendruck, 100 ms für kurzen Tastendruck
+void sendBLE(uint8_t modifier, uint16_t keycode, bool longPress) {
+    bool isConsumer = false;
+    if (modifier == 0x81){
+            isConsumer = true;
+            modifier =0x00;
+    }
+    uint16_t duration = longPress ? 555 : 100; // Dauer des Tastendrucks
     if (connected) {
-        uint8_t report[8] = {0};
-        report[0] = modifier; // Modifier (e.g., Ctrl, Shift)
-        report[2] = keycode;  // Keycode
-                Serial.printf("Sending HID Report: Modifier: 0x%02X, Keycode: 0x%02X\n", modifier, keycode);
-
-        input->setValue(report, sizeof(report));
-        input->notify();
-        delay(duration);
-        report[0] = 0;
-        report[2] = 0;
-        input->setValue(report, sizeof(report));
-        input->notify();
+        if (isConsumer) {
+            // Consumer-Control-Bericht senden
+           uint8_t report[2] = {0};  // Report entspricht der Map
+            report[0] = keycode & 0xFF;
+            report[1] = (keycode >> 8) & 0xFF;
+            consumerInput->setValue(report, sizeof(report));
+            consumerInput->notify();
+            delay(duration);
+            // Tasten loslassen
+            memset(report, 0, sizeof(report));
+            consumerInput->setValue(report, sizeof(report));
+            consumerInput->notify();
+        } else {
+            // Tastatur-Bericht senden
+            uint8_t report[9] = {0};
+            report[0] = 0x01;              // Report ID für Keyboard
+            report[1] = modifier;          // Modifier
+            report[3] = keycode & 0xFF;    // Keycode LSB
+            Serial.printf("Sending Keyboard Report: Modifier: 0x%02X, Keycode: 0x%02X\n", modifier, keycode);
+            input->setValue(report, sizeof(report));
+            input->notify();
+            delay(duration);
+            // Tasten loslassen
+            memset(report, 0, sizeof(report));
+            input->setValue(report, sizeof(report));
+            input->notify();
+        }
         delay(100);
         String sendInfo = "Sent BLE Keycode: 0x" + String(keycode, HEX) + 
-                        " Modifier: 0x" + String(modifier, HEX) +
-                        " Long: " + String(longPress ? "true" : "false");
+                          " Modifier: 0x" + String(modifier, HEX) +
+                          " Long: " + String(longPress ? "true" : "false") +
+                          " Consumer: " + String(isConsumer ? "true" : "false");
         events.send(sendInfo.c_str());
         Serial.println(sendInfo);
     } else {
-         Serial.println("BLE Keyboad not connected, discarding input."); 
-         events.send("BLE Keyboard not connected, discarding input.");
+        Serial.println("BLE Keyboard not connected, discarding input."); 
+        events.send("BLE Keyboard not connected, discarding input.");
     }
 }
 
 // HTTP Endpunkt Handler für BLE
-void handleSendBle(AsyncWebServerRequest *request)
-{
+void handleSendBle(AsyncWebServerRequest *request) {
     if (request->hasParam("modifier", true) &&
         request->hasParam("keycode", true) &&
         request->hasParam("isRepeat", true))
     {
         uint8_t modifier = strtoul(request->getParam("modifier", true)->value().c_str(), nullptr, 16);
-        uint8_t keycode = strtoul(request->getParam("keycode", true)->value().c_str(), nullptr, 16);
+        uint16_t keycode = strtoul(request->getParam("keycode", true)->value().c_str(), nullptr, 16);
         bool isRepeat = request->getParam("isRepeat", true)->value() == "true";
         sendBLE(modifier, keycode, isRepeat);
         request->send(200, "text/plain", "BLE Command Sent\n");
@@ -477,7 +497,6 @@ void handleSendBle(AsyncWebServerRequest *request)
         request->send(400, "text/plain", "Missing parameters");
     }
 }
-
 // ANCHOR Save Routedata
 void handleSaveRequest(AsyncWebServerRequest *request) {
     if (!request->hasParam("data", true)) {

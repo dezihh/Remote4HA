@@ -304,7 +304,8 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     { value: "0x10", text: "KEY_RIGHT_CTRL" },
     { value: "0x20", text: "KEY_RIGHT_SHIFT" },
     { value: "0x40", text: "KEY_RIGHT_ALT" },
-	{ value: "0x80", text: "KEY_RIGHT_ALT" }
+	{ value: "0x80", text: "KEY_RIGHT_ALT" },
+	{ value: "0x81", text: "Consumer" }
 	];
 
 
