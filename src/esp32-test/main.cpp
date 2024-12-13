@@ -112,7 +112,7 @@ void setup() {
     Serial.begin(115200);
     initBLE("BLE IR Test-Router");
 
-    WiFi.begin("your_SSID", "your_PASSWORD");
+    WiFi.begin("MyAp0616", "Wurst1234.");
     while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
         Serial.println("Connecting to WiFi...");
