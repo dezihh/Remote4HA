@@ -1,7 +1,7 @@
 #include <Arduino.h>
-#include <NimBLEDevice.h>
-#include <NimBLEHIDDevice.h>
-#include <NimBLECharacteristic.h>
+#include <BLEDevice.h>
+#include <BLEHIDDevice.h>
+#include <BLECharacteristic.h>
 #include <WiFi.h>
 #include <WebServer.h>
 
@@ -16,10 +16,10 @@ int longKey = 500;
 bool debug = false;
 
 bool is_ble_connected = false;
-NimBLEHIDDevice* hid;
-NimBLECharacteristic* input;
+BLEHIDDevice* hid;
+BLECharacteristic* input;
 bool connected = false;
-NimBLECharacteristic* consumerInput;
+BLECharacteristic* consumerInput;
 
 WebServer server(80);
 
@@ -30,26 +30,26 @@ void handleRoot();
 void handleNotFound();
 void handleSendKey();
 
-class MyCallbacks : public NimBLEServerCallbacks {
-    void onConnect(NimBLEServer* pServer) {
+class MyCallbacks : public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
         connected = true;
         Serial.println("Client connected");
         sendBLE(0x0, 0x66);
     }
 
-    void onDisconnect(NimBLEServer* pServer) {
+    void onDisconnect(BLEServer* pServer) {
         connected = false;
         Serial.println("Client disconnected");
-        NimBLEDevice::startAdvertising();
+        BLEDevice::startAdvertising();
     }
 };
 
 void initBLE(String serverName) {
-    NimBLEDevice::init(serverName.c_str());
-    NimBLEServer* pServer = NimBLEDevice::createServer();
+    BLEDevice::init(serverName.c_str());
+    BLEServer* pServer = BLEDevice::createServer();
     pServer->setCallbacks(new MyCallbacks());
 
-    hid = new NimBLEHIDDevice(pServer);
+    hid = new BLEHIDDevice(pServer);
     input = hid->inputReport(1);  // <-- input REPORTID from report map
     consumerInput = hid->inputReport(2);  // <-- input REPORTID for consumer control
     hid->manufacturer()->setValue("ESP32 Manufacturer");
@@ -58,7 +58,7 @@ void initBLE(String serverName) {
 
     hid->reportMap((uint8_t*)reportMap, sizeof(reportMap));
     hid->startServices();
-    NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+    BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->setAppearance(HID_KEYBOARD);
     pAdvertising->addServiceUUID(hid->hidService()->getUUID());
     pAdvertising->start();
