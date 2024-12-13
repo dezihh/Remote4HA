@@ -37,6 +37,29 @@ const uint8_t reportMap[] = {
     0x19, 0x00,                // Usage Minimum (0)
     0x29, 0xFF,                // Usage Maximum (255)
     0x81, 0x00,                // Input (Data, Array) - Key array (6 keys)
+    0xC0,                      // End Collection
+
+    // Consumer Control
+    0x05, 0x0C,                // Usage Page (Consumer Devices)
+    0x09, 0x01,                // Usage (Consumer Control)
+    0xA1, 0x01,                // Collection (Application)
+    0x85, 0x02,                // Report ID (2)
+    0x15, 0x00,                // Logical Minimum (0)
+    0x25, 0x01,                // Logical Maximum (1)
+    0x75, 0x01,                // Report Size (1)
+    0x95, 0x10,                // Report Count (16)
+    0x0A, 0xB0, 0x00,          // Usage (DPAD Down)
+    0x0A, 0xB1, 0x00,          // Usage (DPAD Up)
+    0x0A, 0xB2, 0x00,          // Usage (DPAD Left)
+    0x0A, 0xB3, 0x00,          // Usage (DPAD Right)
+    0x0A, 0xB4, 0x00,          // Usage (DPAD Center)
+    0x0A, 0xE9, 0x00,          // Usage (Volume Up)
+    0x0A, 0xEA, 0x00,          // Usage (Volume Down)
+    0x0A, 0xE2, 0x00,          // Usage (Mute)
+    0x0A, 0xCD, 0x00,          // Usage (Play/Pause)
+    0x0A, 0xB5, 0x00,          // Usage (Next Track)
+    0x0A, 0xB6, 0x00,          // Usage (Previous Track)
+    0x81, 0x02,                // Input (Data, Variable, Absolute)
     0xC0                       // End Collection
 };
 
