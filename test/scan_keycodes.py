@@ -2,6 +2,7 @@
 ## Script for sending keycodes to IR / BLE Router
 import time
 import requests
+import sys
 
 def send_requests(start_hex, end_hex, modifier):
     # Konvertiere die Eingabe-Start- und Endnummern in Ganzzahlen
@@ -34,10 +35,20 @@ def send_requests(start_hex, end_hex, modifier):
         time.sleep(0.4)
 
 if __name__ == "__main__":
-    # Eingabeaufforderung für die Start- und Endnummer sowie den Modifier
-    start_hex = input("Gib die Startnummer in Hexadezimal ein (z. B. 0x10): ")
-    end_hex = input("Gib die Endnummer in Hexadezimal ein (z. B. 0x20): ")
-    modifier = input("Gib den Modifier ein (z. B. 0x0): ")
+    if len(sys.argv) == 2 and sys.argv[1] == "-h":
+        print("Usage: scan_keycodes.py [start_hex end_hex modifier]")
+        print("If no parameters are provided, you will be prompted to enter them.")
+        sys.exit(0)
+
+    if len(sys.argv) == 4:
+        start_hex = sys.argv[1]
+        end_hex = sys.argv[2]
+        modifier = sys.argv[3]
+    else:
+        # Eingabeaufforderung für die Start- und Endnummer sowie den Modifier
+        start_hex = input("Gib die Startnummer in Hexadezimal ein (z. B. 0x10): ")
+        end_hex = input("Gib die Endnummer in Hexadezimal ein (z. B. 0x20): ")
+        modifier = input("Gib den Modifier ein (z. B. 0x0): ")
 
     # Funktion aufrufen
     send_requests(start_hex, end_hex, modifier)
