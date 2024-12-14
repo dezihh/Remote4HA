@@ -45,7 +45,6 @@
 |Skip B |b6  |Consumer  |Media Previous  |88 |
 |Stop|B7  |Consumer  |Media Stop  |86 |
 |Rec |B2  |Consumer  |Media Record|130|
-
 | | 28 |0x0|66|Enter|
 | |B0 | Consumer |Media Play  |126 |
 | |E8  |0x0|Media Play Pause|85 |
