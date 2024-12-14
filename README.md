@@ -50,9 +50,23 @@ modprobe cp341<br>
 
 ##Keycodes:
 <br>https://developer.android.com/reference/android/view/KeyEvent
+<br>[Flirc HID codes and Android keycode counterparts](https://forum.flirc.tv/index.php?/topic/3569-flirc-hid-codes-and-android-keycode-counterparts/)
+<br>[Android to HID Mappings](https://source.android.com/docs/core/interaction/input/keyboard-devices?hl=de#hid-consumer-page-0x0c) (Bible)
+<br>[HID Usage Tables](https://usb.org/sites/default/files/hut1_21.pdf) (Official PDF Document)
+<br>[HID Table](https://www.freebsddiary.org/APC/usb_hid_usages.php) Better sorted
+<br>[Android keycode Display for Developer](https://play.google.com/store/apps/details?id=jp.ne.neko.freewing.KeyCodeDisp&hl=gsw)
+<br>[Android Key Events Developer Page](https://developer.android.com/reference/android/view/KeyEvent)
+<br>[Other Ideas to HID Mnagement](https://gist.github.com/MightyPork/6da26e382a7ad91b5496ee55fdc73db2)
 
+<br>[Markdwon Editor Online](https://dillinger.io/)
+
+
+###ESP32-WPROOM
 <br> Memory: 384kb
 <br> Flash: 16MB und 8MB PSRAM
+
+##Vscode Twaeaks
+<br> `pio pkg update -g -p espressif32` - Update Platformio
 
 
 
