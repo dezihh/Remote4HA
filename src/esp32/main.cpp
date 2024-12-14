@@ -416,8 +416,8 @@ void initBLE(String serverName) {
     hid->startServices();
     NimBLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
     ///////////pAdvertising->setAppearance(0x03C0);  // Generic HID
-    pAdvertising->setAppearance(0x0341);  // Keyboard
-    //pAdvertising->setAppearance(0x03C1);  // Remote Control
+    //-ok-pAdvertising->setAppearance(0x0341);  // Keyboard
+    pAdvertising->setAppearance(0x03C1);  // Remote Control
     
     pAdvertising->addServiceUUID(hid->hidService()->getUUID());
         // Optimierungen
@@ -437,8 +437,11 @@ void initBLE(String serverName) {
             NimBLEClient* pClient = NimBLEDevice::createClient();
             if (pClient->connect(address, false)) {
                 Serial.println("Reconnected to the device: " + lastAddress);
+                events.send(lastAddress.c_str());
             } else {
+                NimBLEDevice::startAdvertising(); 
                 Serial.println("Failed to reconnect, starting fresh.");
+                events.send("Failed to reconnect, starting fresh.");
             }
         }
     }
@@ -920,6 +923,7 @@ void setup() {
     // Initialisiere den IR-Sender
     IrSender.begin(IR_SEND_PIN);
     initBLE("BLE IR Router");
+    NimBLEDevice::startAdvertising();
     Serial.println("Advertising started!");
     #ifdef BOARD_ESP32_DEVKITC
         usbHost.begin();
