@@ -46,7 +46,6 @@ modprobe cp341<br>
 <br>ESP Readme: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/partition-tables.html
 <br>Blog: https://community.platformio.org/t/platformio-esp32-partitions/33792
 
-ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1
 
 ##Keycodes:
 <br>[Flirc HID codes and Android keycode counterparts](https://forum.flirc.tv/index.php?/topic/3569-flirc-hid-codes-and-android-keycode-counterparts/)
@@ -58,6 +57,7 @@ ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1
 <br>[Other Ideas to HID Mnagement](https://gist.github.com/MightyPork/6da26e382a7ad91b5496ee55fdc73db2)
 
 <br>[Markdwon Editor Online](https://dillinger.io/)
+<br>[Markdown Syntax Help](https://www.markdownguide.org/basic-syntax/)
 
 
 ###ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1
