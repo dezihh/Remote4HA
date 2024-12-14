@@ -46,7 +46,7 @@ modprobe cp341<br>
 <br>ESP Readme: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/partition-tables.html
 <br>Blog: https://community.platformio.org/t/platformio-esp32-partitions/33792
 
-<br><b>ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1</b>
+ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1
 
 ##Keycodes:
 <br>[Flirc HID codes and Android keycode counterparts](https://forum.flirc.tv/index.php?/topic/3569-flirc-hid-codes-and-android-keycode-counterparts/)
@@ -60,9 +60,9 @@ modprobe cp341<br>
 <br>[Markdwon Editor Online](https://dillinger.io/)
 
 
-###ESP32-WPROOM
-<br> Memory: 384kb
-<br> Flash: 16MB und 8MB PSRAM
+###ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1
+<br>Memory: 384kb
+<br>Flash: 16MB und 8MB PSRAM
 
 ##Vscode Twaeaks
 <br> `pio pkg update -g -p espressif32` - Update Platformio
