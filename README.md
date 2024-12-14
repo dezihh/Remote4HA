@@ -49,9 +49,8 @@ modprobe cp341<br>
 <br><b>ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1</b>
 
 ##Keycodes:
-<br>https://developer.android.com/reference/android/view/KeyEvent
 <br>[Flirc HID codes and Android keycode counterparts](https://forum.flirc.tv/index.php?/topic/3569-flirc-hid-codes-and-android-keycode-counterparts/)
-<br>[Android to HID Mappings](https://source.android.com/docs/core/interaction/input/keyboard-devices?hl=de#hid-consumer-page-0x0c) (Bible)
+<br>[Android to HID Mappings](https://source.android.com/docs/core/interaction/input/keyboard-devices?hl=de#hid-consumer-page-0x0c)(Bible)
 <br>[HID Usage Tables](https://usb.org/sites/default/files/hut1_21.pdf) (Official PDF Document)
 <br>[HID Table](https://www.freebsddiary.org/APC/usb_hid_usages.php) Better sorted
 <br>[Android keycode Display for Developer](https://play.google.com/store/apps/details?id=jp.ne.neko.freewing.KeyCodeDisp&hl=gsw)
