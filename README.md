@@ -9,20 +9,18 @@ NodeMcu ESP32 Wroom 32 https://www.amazon.de/dp/B0CLD28SHQ?ref=ppx_yo2ov_dt_b_fe
 HC-Typ-05 Bluetooth RF Transceiver https://www.amazon.de/gp/product/B0DGXCGD8N/ref=ppx_yo_dt_b_asin_title_o02_s00?ie=UTF8&psc=1<br>
 Hailege USB Host Shield 2.0 ADK USB Host https://www.amazon.de/dp/B07Y83TJ47?ref=ppx_yo2ov_dt_b_fed_asin_title <br>
 
-<b>Modules:</b><br>
+## Modules
 https://registry.platformio.org/libraries/felis/USB-Host-Shield-20<br>
-
 lib_deps = <br>
     tzapu/WiFiManager<br>
     tanakamasayuki/EspUsbHost<br>
 
-<b>WSL4 COM:</b><br>
+### WSL4COM
 winget install usbipd<br>
 usbipd list<br>
 usbipd.exe bind --busid 3-5<br>
 usbipd attach --wsl --busid 3-5<br>
-
-modprobe cp341<br>
+- modprobe cp341 
 
 <br>Plug Any USB Device on an ESP8266: https://www.hackster.io/usini/plug-any-usb-device-on-an-esp8266-e0ca8a
 <br>USB to USB keyboard converter build log: https://geekhack.org/index.php?topic=80421.0
@@ -32,7 +30,7 @@ modprobe cp341<br>
 <br>SoftUSB: https://github.com/tobozo/ESP32-USB-Soft-Host/tree/main
 <br>Esp32-Jumpstart (Host, Pinout) https://github.com/touchgadget/esp32-usb-host-demos
 
-<br> Use Webserial! https://github.com/ayushsharma82/WebSerial/tree/master
+
 
 ## BLE
 <br>https://github.com/blackketter/ESP32-BLE-Combo/tree/master
@@ -56,16 +54,19 @@ modprobe cp341<br>
 <br>[Android Key Events Developer Page](https://developer.android.com/reference/android/view/KeyEvent)
 <br>[Other Ideas to HID Mnagement](https://gist.github.com/MightyPork/6da26e382a7ad91b5496ee55fdc73db2)
 
+## Markdown 
 <br>[Markdwon Editor Online](https://dillinger.io/)
 <br>[Markdown Syntax Help](https://www.markdownguide.org/basic-syntax/)
 
 
+### ESP Info
 ### ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1
 <br>Memory: 384kb
 <br>Flash: 16MB und 8MB PSRAM
 
-## Vscode Twaeaks
+## Vscode Twaeaks & Helpers
 <br> `pio pkg update -g -p espressif32` - Update Platformio
+<br> Use Webserial! https://github.com/ayushsharma82/WebSerial/tree/master
 
 
 
