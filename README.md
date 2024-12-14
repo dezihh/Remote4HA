@@ -4,7 +4,7 @@ Remotecontainer Skeleton: https://github.com/prenone/platformio-vscode-devcontai
 Install Dev Containers<br>
 F1 -> Dev Containers: Clone Repository in Named Container Volume<br>
 
-<b>BOM:</b><br>
+## BOM:
 NodeMcu ESP32 Wroom 32 https://www.amazon.de/dp/B0CLD28SHQ?ref=ppx_yo2ov_dt_b_fed_asin_title<br>
 HC-Typ-05 Bluetooth RF Transceiver https://www.amazon.de/gp/product/B0DGXCGD8N/ref=ppx_yo_dt_b_asin_title_o02_s00?ie=UTF8&psc=1<br>
 Hailege USB Host Shield 2.0 ADK USB Host https://www.amazon.de/dp/B07Y83TJ47?ref=ppx_yo2ov_dt_b_fed_asin_title <br>
@@ -34,20 +34,20 @@ modprobe cp341<br>
 
 <br> Use Webserial! https://github.com/ayushsharma82/WebSerial/tree/master
 
-<br><b>BLE</b>
+## BLE
 <br>https://github.com/blackketter/ESP32-BLE-Combo/tree/master
 <br>kleiner: https://github.com/T-vK/ESP32-BLE-Keyboard/blob/master/BleKeyboard.h
 <br>commands-table: https://github.com/asterics/esp32_mouse_keyboard
 <br> BLE Advertising Article https://stackoverflow.com/questions/69921353/how-can-i-clone-a-non-paired-ble-signal-from-a-remote-to-trigger-a-device
 <br> Google Keycodes https://developer.android.com/reference/android/view/KeyEvent
 
-<br><b>Filesystem</b>
+## Filesystem
 <br>Partition Tables: https://github.com/espressif/arduino-esp32/tree/master/tools/partitions
 <br>ESP Readme: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/partition-tables.html
 <br>Blog: https://community.platformio.org/t/platformio-esp32-partitions/33792
 
 
-##Keycodes:
+## Keycodes:
 <br>[Flirc HID codes and Android keycode counterparts](https://forum.flirc.tv/index.php?/topic/3569-flirc-hid-codes-and-android-keycode-counterparts/)
 <br>[Android to HID Mappings](https://source.android.com/docs/core/interaction/input/keyboard-devices?hl=de#hid-consumer-page-0x0c)(Bible)
 <br>[HID Usage Tables](https://usb.org/sites/default/files/hut1_21.pdf) (Official PDF Document)
@@ -60,11 +60,11 @@ modprobe cp341<br>
 <br>[Markdown Syntax Help](https://www.markdownguide.org/basic-syntax/)
 
 
-###ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1
+### ESP32 S3 DevKitC 1 N16R8 ESP32 S3 WROOM1
 <br>Memory: 384kb
 <br>Flash: 16MB und 8MB PSRAM
 
-##Vscode Twaeaks
+## Vscode Twaeaks
 <br> `pio pkg update -g -p espressif32` - Update Platformio
 
 
