@@ -25,12 +25,11 @@ int longKey = 500;
 
 bool debug = false;
 
-bool is_ble_connected = false;
 NimBLEHIDDevice* hid;
 NimBLECharacteristic* input;
 bool connected = false;
 NimBLECharacteristic* consumerInput;
-Preferences preferences;
+//Preferences preferences;
 
 // IR: Pin Definitionen
 #ifdef BOARD_ESP32_DEVKITC
@@ -64,11 +63,12 @@ class MyCallbacks : public NimBLEServerCallbacks {
         connected = true;
         Serial.println("Client connected");
         NimBLEAddress address = NimBLEAddress(desc->peer_ota_addr);
-        preferences.begin("BLE", false);
-        preferences.putString("lastAddress", address.toString().c_str());
-        preferences.end();
-        Serial.println(("Device connected and address stored: " + address.toString()).c_str());
-        
+        Preferences preferences;
+        if (!preferences.begin("BLE", false)) {
+            preferences.putString("lastAddress", address.toString().c_str());
+            preferences.end();
+            Serial.println(("Device connected and address stored: " + address.toString()).c_str());
+        }
     }
 
     void onDisconnect(NimBLEServer* pServer) {
@@ -370,10 +370,22 @@ void handleSendIr(AsyncWebServerRequest *request)
         request->hasParam("protocol", true) &&
         request->hasParam("repeats", true))
     {
-        uint32_t address = strtoul(request->getParam("address", true)->value().c_str(), nullptr, 16);
-        uint8_t command = strtoul(request->getParam("command", true)->value().c_str(), nullptr, 16);
+        // Extrahiere die Parameter
+        String addressStr = request->getParam("address", true)->value();
+        String commandStr = request->getParam("command", true)->value();
+        String protocolStr = request->getParam("protocol", true)->value();
+
+        // Konvertiere die Zeichenketten in Großbuchstaben
+        addressStr.toUpperCase();
+        commandStr.toUpperCase();
+        protocolStr.toUpperCase();
+
+        // Konvertiere die Großbuchstaben-Zeichenketten in Zahlen
+        uint32_t address = strtoul(addressStr.c_str(), nullptr, 16);
+        uint8_t command = strtoul(commandStr.c_str(), nullptr, 16);
+        decode_type_t protocol = static_cast<decode_type_t>(strtoul(protocolStr.c_str(), nullptr, 16));
         bool repeats = request->getParam("repeats", true)->value() == "true";
-        decode_type_t protocol = static_cast<decode_type_t>(strtoul(request->getParam("protocol", true)->value().c_str(), nullptr, 16));
+
         sendIR(address, command, repeats, protocol);
         request->send(200, "text/plain", "IR Command Sent");
     }
@@ -385,87 +397,94 @@ void handleSendIr(AsyncWebServerRequest *request)
 
 NimBLEClient* pClient = nullptr;
 NimBLEAddress lastConnectedDevice;
+void initBLE(String serverName) {
+    // curl -X POST -d 'modifier=0x0&keycode=0x04&isRepeat=0' http://192.168.0.167/sendBLE
 
-void initBLE(String serverName) 
-{
     NimBLEDevice::init(serverName.c_str());
     NimBLEServer* pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(new MyCallbacks());
 
     hid = new NimBLEHIDDevice(pServer);
-    input = hid->inputReport(1);
-    consumerInput = hid->inputReport(2);
-    hid->manufacturer()->setValue("ESP32 Manufacturer");
+    input = hid->inputReport(1);  // <-- input REPORTID from report map
+    consumerInput = hid->inputReport(2);  // <-- input REPORTID for consumer control
+    
+    hid->manufacturer()->setValue("dezihh");
     hid->pnp(0x02, 0x1234, 0x5678, 0x0110);
     hid->hidInfo(0x00, 0x01);
 
     hid->reportMap((uint8_t*)reportMap, sizeof(reportMap));
     hid->startServices();
-    NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
-    pAdvertising->setAppearance(HID_KEYBOARD);
+    NimBLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
+    ///////////pAdvertising->setAppearance(0x03C0);  // Generic HID
+    pAdvertising->setAppearance(0x0341);  // Keyboard
+    //pAdvertising->setAppearance(0x03C1);  // Remote Control
+    
     pAdvertising->addServiceUUID(hid->hidService()->getUUID());
+        // Optimierungen
+    pAdvertising->setMinInterval(0x20); // 32 * 0.625ms = 20ms
+    pAdvertising->setMaxInterval(0x40); // 64 * 0.625ms = 40ms
+    pAdvertising->setScanResponse(true);
+    pAdvertising->setMinPreferred(0x06); // 7.5ms
+    pAdvertising->setMaxPreferred(0x12); // 15ms 
     pAdvertising->start();
     Serial.println("Advertising started!");
-
-    // Attempt to reconnect to the last connected device
-    preferences.begin("BLE", true);
-    String lastAddress = preferences.getString("lastAddress", "");
-    preferences.end();
-    if (lastAddress != "") {
-        NimBLEAddress address(lastAddress.c_str());
-        NimBLEClient* pClient = NimBLEDevice::createClient();
-        if (pClient->connect(address, false)) {
-            Serial.println("Reconnected to the device: " + lastAddress);
-        } else {
-            Serial.println("Failed to reconnect, starting fresh.");
+    Preferences preferences;
+    if (!preferences.begin("BLE", true)){
+        String lastAddress = preferences.getString("lastAddress", "");
+        preferences.end();
+        if (lastAddress != "") {
+            NimBLEAddress address(lastAddress.c_str());
+            NimBLEClient* pClient = NimBLEDevice::createClient();
+            if (pClient->connect(address, false)) {
+                Serial.println("Reconnected to the device: " + lastAddress);
+            } else {
+                Serial.println("Failed to reconnect, starting fresh.");
+            }
         }
     }
 }
 
 
-void initSecurity() {
-    NimBLESecurity* pSecurity = new NimBLESecurity();
-    pSecurity->setAuthenticationMode(ESP_LE_AUTH_BOND);
-    pSecurity->setCapability(ESP_IO_CAP_NONE);  // Keine PIN erforderlich
-    pSecurity->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
-}
-
-
 //void sendBLE(uint8_t modifier, uint8_t keycode, bool longPress = false) {
-void sendBLE(uint8_t modifier, uint16_t keycode, bool longPress) {
+void sendBLE(uint8_t modifier, uint16_t keycode, bool longPress=false) {
     bool isConsumer = false;
     if (modifier == 0x81){
             isConsumer = true;
-            modifier =0x00;
     }
     uint16_t duration = longPress ? 555 : 100; // Dauer des Tastendrucks
     if (connected) {
         if (isConsumer) {
             // Consumer-Control-Bericht senden
-           uint8_t report[2] = {0};  // Report entspricht der Map
+            uint8_t report[2] = {0};
             report[0] = keycode & 0xFF;
             report[1] = (keycode >> 8) & 0xFF;
+            Serial.printf("Sending Consumer HID Report: Keycode: 0x%04X\n", keycode);
+
             consumerInput->setValue(report, sizeof(report));
             consumerInput->notify();
-            delay(duration);
-            // Tasten loslassen
+            delay(100);
             memset(report, 0, sizeof(report));
             consumerInput->setValue(report, sizeof(report));
             consumerInput->notify();
+            delay(100);
+            String sendInfo = "Sent BLE Consumer Keycode: 0x" + String(keycode, HEX);
+            Serial.println(sendInfo);
         } else {
             // Tastatur-Bericht senden
-            uint8_t report[9] = {0};
-            report[0] = 0x01;              // Report ID für Keyboard
-            report[1] = modifier;          // Modifier
-            report[3] = keycode & 0xFF;    // Keycode LSB
-            Serial.printf("Sending Keyboard Report: Modifier: 0x%02X, Keycode: 0x%02X\n", modifier, keycode);
+            uint8_t report[8] = {0};
+            report[0] = modifier;  // Modifier (Shift, Ctrl, Alt etc.)
+            report[2] = keycode;   // Keycode
+
+            input->setValue(report, sizeof(report)); // Key-Press senden
+            input->notify();
+            //delay(100); --> is unten definiert
+
+            // Key-Up Event
+            memset(report, 0, sizeof(report)); // Bericht zurücksetzen
             input->setValue(report, sizeof(report));
             input->notify();
-            delay(duration);
-            // Tasten loslassen
-            memset(report, 0, sizeof(report));
-            input->setValue(report, sizeof(report));
-            input->notify();
+            delay(100);
+
         }
         delay(100);
         String sendInfo = "Sent BLE Keycode: 0x" + String(keycode, HEX) + 
@@ -486,8 +505,16 @@ void handleSendBle(AsyncWebServerRequest *request) {
         request->hasParam("keycode", true) &&
         request->hasParam("isRepeat", true))
     {
-        uint8_t modifier = strtoul(request->getParam("modifier", true)->value().c_str(), nullptr, 16);
-        uint16_t keycode = strtoul(request->getParam("keycode", true)->value().c_str(), nullptr, 16);
+        // Extrahiere die Parameter
+        String modifierStr = request->getParam("modifier", true)->value();
+        String keycodeStr = request->getParam("keycode", true)->value();
+
+        // Konvertiere die Zeichenketten in Großbuchstaben
+        modifierStr.toUpperCase();
+        keycodeStr.toUpperCase();
+        // Konvertiere die Zeichenketten in Großbuchstaben
+        uint8_t modifier = strtoul(modifierStr.c_str(), nullptr, 16);
+        uint16_t keycode = strtoul(keycodeStr.c_str(), nullptr, 16);
         bool isRepeat = request->getParam("isRepeat", true)->value() == "true";
         sendBLE(modifier, keycode, isRepeat);
         request->send(200, "text/plain", "BLE Command Sent\n");
@@ -537,6 +564,8 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
                     component = row.substring(componentStart, componentEnd);
                 }
                 component.trim();
+                String componentUpper;
+                //component.toUpperCase();
 
                 switch (componentIndex) {
                     case 0:
@@ -546,19 +575,28 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
                         routeTable[routeCount].protocol = static_cast<decode_type_t>(strtol(component.c_str(), NULL, 16));
                         break;
                     case 2:
-                        routeTable[routeCount].code = strtol(component.c_str(), NULL, 16);
+                        //routeTable[routeCount].code = strtol(component.c_str(), NULL, 16);
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].code = strtol(componentUpper.c_str(), NULL, 16);
                         break;
                     case 3:
-                        routeTable[routeCount].address = strtol(component.c_str(), NULL, 16);
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].address = strtol(componentUpper.c_str(), NULL, 16);
                         break;
                     case 4:
                         routeTable[routeCount].isRepeat = component.toInt();
                         break;
                     case 5:
-                        routeTable[routeCount].modifier = strtol(component.c_str(), NULL, 16);
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].modifier = strtol(componentUpper.c_str(), NULL, 16);
                         break;
                     case 6:
-                        routeTable[routeCount].command = strtol(component.c_str(), NULL, 16);
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].command = strtol(componentUpper.c_str(), NULL, 16);
                         break;
                     case 7:
                         routeTable[routeCount].keyLong = component.toInt();
@@ -567,22 +605,32 @@ void handleSaveRequest(AsyncWebServerRequest *request) {
                         routeTable[routeCount].actionFuncName = component;
                         break;
                     case 9:
-                        routeTable[routeCount].oIRprot = static_cast<decode_type_t>(strtol(component.c_str(), NULL, 16));
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].oIRprot = static_cast<decode_type_t>(strtol(componentUpper.c_str(), NULL, 16));
                         break;
                     case 10:
-                        routeTable[routeCount].oIRcode = strtol(component.c_str(), NULL, 16);
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].oIRcode = strtol(componentUpper.c_str(), NULL, 16);
                         break;
                     case 11:
-                        routeTable[routeCount].oIRaddress = strtol(component.c_str(), NULL, 16);
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].oIRaddress = strtol(componentUpper.c_str(), NULL, 16);
                         break;
                     case 12:
                         routeTable[routeCount].oIRisRepeat = component.toInt();
                         break;
                     case 13:
-                        routeTable[routeCount].oBleMod = strtol(component.c_str(), NULL, 16);
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].oBleMod = strtol(componentUpper.c_str(), NULL, 16);
                         break;
                     case 14:
-                        routeTable[routeCount].oBleCode = strtol(component.c_str(), NULL, 16);
+                        componentUpper = component;
+                        componentUpper.toUpperCase();
+                        routeTable[routeCount].oBleCode = strtol(componentUpper.c_str(), NULL, 16);
                         break;
                     case 15:
                         routeTable[routeCount].oRBleRepeat = component.toInt();
@@ -673,6 +721,7 @@ void route(String source, IRrcv irData)
 
             if (repeatCondition)
             {
+                Serial.println(route.actionFuncName);
                 // Aktion ausführen basierend auf actionFuncName
                 if (route.actionFuncName == "sendIR")
                 {
@@ -784,6 +833,7 @@ void route(String source, USBRecv usbData)
  }
 
 void loadRoutesFromNVS() {
+    Preferences preferences;
     if (!preferences.begin("routeData", true)) {
         Serial.println("Failed to initialize NVS for reading");
         return;
@@ -837,30 +887,6 @@ void saveRoutesToNVS()
     Serial.println("Routes and settings saved to NVS.");
 }
 
-void listPartitions() {
-    const esp_partition_t* partition;
-    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
-
-    Serial.println("App Partitions:");
-    while (it != NULL) {
-        partition = esp_partition_get(it);
-        Serial.printf("Name: %s, Type: %d, SubType: %d, Address: 0x%08x, Size: 0x%08x\n",
-                      partition->label, partition->type, partition->subtype, partition->address, partition->size);
-        it = esp_partition_next(it);
-    }
-    esp_partition_iterator_release(it);
-
-    it = esp_partition_find(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, NULL);
-    Serial.println("Data Partitions:");
-    while (it != NULL) {
-        partition = esp_partition_get(it);
-        Serial.printf("Name: %s, Type: %d, SubType: %d, Address: 0x%08x, Size: 0x%08x\n",
-                      partition->label, partition->type, partition->subtype, partition->address, partition->size);
-        it = esp_partition_next(it);
-    }
-    esp_partition_iterator_release(it);
-}
-
 void showNVSUsage() {
     // NVS-Nutzung anzeigen
     nvs_stats_t nvs_stats;
@@ -886,21 +912,18 @@ void setup() {
     } else {
         Serial.println("PSRAM is not available.");
     }   
-
     showNVSUsage(); 
     Serial.printf("Flashsize: %u bytes\n", ESP.getFlashChipSize());
     wifiTask();
-
     loadRoutesFromNVS();
     webserver();
-        // Initialisiere den IR-Sender
+    // Initialisiere den IR-Sender
     IrSender.begin(IR_SEND_PIN);
     initBLE("BLE IR Router");
     Serial.println("Advertising started!");
     #ifdef BOARD_ESP32_DEVKITC
         usbHost.begin();
     #endif
-
     // SSE-Endpunkt registrieren
     server.addHandler(&events);
       // HTTP-Endpunkte
@@ -914,7 +937,7 @@ void setup() {
             { handleLoadRequest(request); });
     server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request)
             { handleSaveRequest(request); });
-   
+
         // Erstelle eine neue FreeRTOS-Task für die IR-Empfänger-Logik
      BaseType_t result = xTaskCreatePinnedToCore(
             IRRecvTask,        // Task-Funktion
@@ -924,7 +947,7 @@ void setup() {
             1,                 // Priorität der Task
             NULL,              // Task-Handle
             1                  // Kern, auf dem die Task ausgeführt werden soll
-        ); 
+        );  
 }
 
 void loop() {
