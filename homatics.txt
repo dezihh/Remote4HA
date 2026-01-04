@@ -1,0 +1,47 @@
+Homatics Box r4K Codes
+9F F1
+74 Bookmark
+68 F10 (Google Plastore)
+67 F09 (Prime)
+64 F06 (Youtube)
+63 F08 (NetFlix) 
+60 Button_2
+58 Captions
+57 F2
+4C Prog_Blue
+4B Prog_Red
+4A Prog Green
+49 Prog Yellow
+48 Back
+47 Home
+46 583
+34 Chan_dwn
+33 Chan Up
+32 Guide
+29 Info
+25 Vol Mute
+24 Vol -
+23 Vol +
+21 Neustart
+19 Dpad_center
+18 Dpa Right
+17 Dpad Left
+16 Dpad Dwn
+15 Dpad Up
+0F Settings
+0A 0
+09 9
+08 8
+07 7
+06 6
+05 5
+04 4
+03 3
+02 2
+01 1
+
+
+
+
+
+
