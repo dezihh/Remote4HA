@@ -1,3 +1,17 @@
+back = 580 long 8 15
+play RO 217 
+fwd back 4
+rec 4 11
+5 assist
+1 media-audio-track
+2 brightness down
+ok grva 68
+exit 5 12
+info 2 9
+blau 3 10
+
+
+
 Homatics Box r4K Codes
 9F F1
 74 Bookmark
