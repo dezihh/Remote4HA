@@ -1,3 +1,37 @@
+20 grave
+21 off
+33 channel up
+34 channel down
+46 ro
+47 home
+48 back
+49 del
+4a 580
+50 brightness down
+51 brightness up
+52 media audio track
+53 sleep
+54 assist
+55 Wakeup
+56 media top menu
+57 pairing
+58 kana
+61 nes share
+63 tv input component 2
+70 page doen
+71 page up
+72 tv terra up
+73 tv terra digi
+74 tv teletext
+75 tv number entry
+76 tv sat bs
+77 ..
+78 F12
+79 F6 --> Youtube----
+a6 info
+ed tv input vga
+-
+
 back = 580 long 8 15
 play RO 217 
 fwd back 4
