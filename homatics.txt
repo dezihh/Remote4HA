@@ -1,3 +1,41 @@
+nec01
+3. edia pause
+4 page up
+5 media stop
+6 page dwn
+7 F2
+9 netflix
+0a f3
+0b leiser
+0c f6. -->youtube
+0d media prev
+0e f5
+11 media next
+1c f7
+21 info
+26 f10
+27 f9 - google play
+28 settings
+29 button 6
+41 vol mute
+44 f1
+45 f6
+46 button 7
+48 vol+
+49 f8
+4c media fast forward
+4d f4
+50 Media rewind
+58 menu
+5c home? +-
+60 guide
+74 bookmark
+76 tv sat bs
+88 f11
+
+
+
+
 20 grave
 21 off
 33 channel up
