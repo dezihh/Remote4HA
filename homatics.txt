@@ -36,7 +36,7 @@ nec01
 
 
 nec00
-20 grave
+20 grave ok@mecool
 21 off
 33 channel up
 34 channel down
@@ -53,7 +53,7 @@ nec00
 55 Wakeup
 56 media top menu
 57 pairing
-58 kana
+58 kana mecool apps@mecool
 61 nes share
 63 tv input component 2
 70 page doen
