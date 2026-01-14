@@ -7,6 +7,12 @@ protocol: NEC
 address: 88 00 00 00
 command: 9F 00 00 00
 # 
+name: OK
+type: parsed
+protocol: NEC
+address: 88 00 00 00
+command: 19 00 00 00
+# 
 name: Audio
 type: parsed
 protocol: NEC
@@ -100,8 +106,8 @@ command: 32 00 00 00
 name: Home
 type: parsed
 protocol: NEC
-address: 01 00 00 00
-command: 5C 00 00 00
+address: 88 00 00 00
+command: 47 00 00 00
 # 
 name: Info
 type: parsed
@@ -115,17 +121,11 @@ protocol: NEC
 address: 01 00 00 00
 command: 58 00 00 00
 # 
-name: Ok
-type: parsed
-protocol: NEC
-address: 00 00 00 00
-command: 20 00 00 00
-# 
 name: PageDown
 type: parsed
 protocol: NEC
 address: 01 00 00 00
-command: 05 00 00 00
+command: 06 00 00 00
 # 
 name: PageUp
 type: parsed
@@ -160,8 +160,8 @@ command: 50 00 00 00
 name: Settings?
 type: parsed
 protocol: NEC
-address: 01 00 00 00
-command: 28 00 00 00
+address: 88 00 00 00
+command: 0F 00 00 00
 # 
 name: SkipBack
 type: parsed
